@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>词阵 · Word Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+/* ──────────── 绝美 UI 样式 ──────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --ink:        #0a0a0a;
+  --ink-2:      #2d2d2d;
+  --ink-3:      #6b7280;
+  --ink-4:      #9ca3af;
+  --surface:    #ffffff;
+  --bg:         #f7f8fa;
+  --bg-2:       #f0f2f5;
+  --border:     #e5e7eb;
+  --border-2:   #d1d5db;
+  --blue:       #1d6ef5;
+  --blue-l:     #eff4ff;
+  --blue-ll:    #f5f8ff;
+  --green:      #059669;
+  --red:        #dc2626;
+  --amber:      #d97706;
+  --r:          12px;
+  --r-lg:       18px;
+  --r-xl:       24px;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 48px 20px 80px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.header { text-align: center; margin-bottom: 36px; animation: fadeDown .5s ease both; }
+.wordmark { display: inline-flex; gap: 3px; margin-bottom: 20px; }
+.wm-block { width: 11px; height: 30px; background: var(--ink); border-radius: 3px; animation: wm-in .4s ease both; }
+.wm-block:nth-child(2) { height: 22px; margin-top: 4px; animation-delay: .05s; background: var(--blue); }
+.wm-block:nth-child(3) { height: 26px; margin-top: 2px; animation-delay: .1s; }
+.wm-block:nth-child(4) { height: 18px; margin-top: 6px; animation-delay: .15s; background: var(--ink-3); }
+.wm-block:nth-child(5) { height: 30px; animation-delay: .2s; }
+
+.app-title { font-size: 28px; font-weight: 600; color: var(--ink); letter-spacing: -.5px; }
+.app-title span { color: var(--blue); }
+.app-sub { margin-top: 8px; font-size: 14px; color: var(--ink-3); font-weight: 400; letter-spacing: .1px; }
+
+.card {
+  width: 100%; max-width: 940px; background: var(--surface); border-radius: var(--r-xl);
+  border: 1px solid var(--border); box-shadow: 0 2px 16px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+  overflow: hidden; animation: fadeUp .5s ease .08s both;
+}
+
+.input-panel { padding: 32px; }
+.section-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-4); margin-bottom: 16px; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px;
+  font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border-2);
+  background: var(--surface); color: var(--ink-2); transition: all .15s; white-space: nowrap;
+}
+.chip:hover, .chip.on { border-color: var(--blue); color: var(--blue); background: var(--blue-l); }
+.chip svg { width: 15px; height: 15px; flex-shrink: 0; }
+.ocr-msg { font-size: 13px; font-weight: 500; color: var(--ink-3); }
+
+.textarea-wrap { position: relative; }
+textarea {
+  width: 100%; min-height: 160px; padding: 16px 16px 36px; border: 1px solid var(--border-2);
+  border-radius: var(--r); font-size: 15px; font-weight: 400; line-height: 1.8; resize: vertical;
+  outline: none; background: var(--bg); color: var(--ink); font-family: inherit; transition: all .15s;
+}
+textarea:focus { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 3px rgba(29,110,245,.1); }
+textarea::placeholder { color: var(--ink-4); }
+.char-count { position: absolute; right: 12px; bottom: 10px; font-size: 11px; color: var(--ink-4); font-family: 'DM Mono', monospace; pointer-events: none; }
+
+.actions { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; border-radius: 99px;
+  font-size: 14px; font-weight: 600; background: var(--ink); color: #fff; border: none; cursor: pointer; transition: all .15s;
+}
+.btn-primary:hover { background: var(--blue); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(29,110,245,.25); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-primary svg { width: 16px; height: 16px; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 99px;
+  font-size: 13px; font-weight: 500; background: transparent; color: var(--ink-3); border: 1px solid var(--border-2); cursor: pointer; transition: all .15s;
+}
+.btn-ghost:hover { color: var(--ink); border-color: var(--ink-3); background: var(--bg); }
+.btn-ghost.sm { padding: 7px 14px; font-size: 12px; }
+.btn-ghost svg { width: 14px; height: 14px; }
+
+.progress-panel { padding: 20px 32px; background: var(--bg); border-top: 1px solid var(--border); display: none; }
+.progress-panel.show { display: block; }
+.prog-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.prog-label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.prog-pct { font-size: 13px; font-weight: 600; color: var(--blue); font-family: 'DM Mono', monospace; }
+.prog-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .35s; width: 0%; }
+.prog-sub { margin-top: 6px; font-size: 12px; color: var(--ink-4); }
+
+.results-panel { display: none; }
+.results-panel.show { display: block; }
+.results-header { padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); background: var(--bg); }
+.stat-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px;
+  background: var(--surface); border: 1px solid var(--border-2); font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+.stat-badge b { color: var(--blue); font-weight: 700; font-family: 'DM Mono', monospace; }
+.export-row { display: flex; gap: 8px; }
+
+/* ──────────── 核心修复一：极度纯净的表格结构，绝不错位 ──────────── */
+.table-wrap { padding: 0 32px 32px; overflow-x: auto; }
+.table-scroll { max-height: 560px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-lg); }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+thead th { position: sticky; top: 0; z-index: 10; padding: 12px 16px; background: var(--bg); font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--border); text-align: left; }
+tbody td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; font-size: 14px; color: var(--ink); word-wrap: break-word; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background .12s; }
+tbody tr:hover td { background: var(--blue-ll); }
+
+th:nth-child(1), td:nth-child(1) { width: 22%; }
+th:nth-child(2), td:nth-child(2) { width: 30%; }
+th:nth-child(3), td:nth-child(3) { width: 42%; }
+th:nth-child(4), td:nth-child(4) { width: 6%; text-align: center; }
+
+.word-cell { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--ink); }
+
+/* 只保留内阴影，去除所有外边距、内边距，完全保持 td 的原生排版 */
+tbody td[contenteditable="true"] { 
+  outline: none; cursor: text; transition: background .12s, box-shadow .12s; 
+}
+tbody td[contenteditable="true"]:focus { 
+  background: #fff; box-shadow: inset 0 0 0 2px var(--blue); border-radius: 4px;
+}
+
+.pos-tag {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-right: 5px;
+  vertical-align: middle; font-family: 'DM Mono', monospace; letter-spacing: .03em;
+}
+.pos-n   { background: #eff4ff; color: #1d6ef5; }
+.pos-v   { background: #ecfdf5; color: #059669; }
+.pos-adj { background: #fff1f2; color: #e11d48; }
+.pos-adv { background: #fffbeb; color: #d97706; }
+.pos-pron{ background: #fdf4ff; color: #9333ea; }
+.pos-prep{ background: #f0fdf4; color: #16a34a; }
+.pos-conj{ background: #fff7ed; color: #ea580c; }
+.pos-other{ background: #f1f5f9; color: #64748b; }
+
+.def-loading { display: flex; align-items: center; gap: 8px; color: var(--ink-4); font-size: 13px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 13px; height: 13px; border: 2px solid var(--border-2); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+
+.del-btn { opacity: 0; background: none; border: none; font-size: 13px; cursor: pointer; color: var(--ink-4); width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; transition: all .12s; font-weight: bold; }
+tr:hover .del-btn { opacity: 1; }
+.del-btn:hover { color: var(--red); background: #fee2e2; }
+
+.toast { position: fixed; bottom: 28px; right: 28px; padding: 11px 18px; border-radius: var(--r); font-size: 13px; font-weight: 500; color: #fff; background: var(--ink); z-index: 9999; opacity: 0; transform: translateY(8px); transition: all .25s ease; pointer-events: none; box-shadow: 0 4px 20px rgba(0,0,0,.15); }
+.toast.active { opacity: 1; transform: translateY(0); }
+.toast.ok  { background: var(--green); }
+.toast.err { background: var(--red); }
+
+@keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes wm-in { from { opacity: 0; transform: scaleY(0); } to { opacity: 1; transform: scaleY(1); } }
+
+.filter-bar { padding: 12px 32px; border-top: 1px solid var(--border); display: none; align-items: center; gap: 10px; }
+.filter-bar.show { display: flex; }
+.filter-input { flex: 1; max-width: 260px; padding: 8px 14px; border: 1px solid var(--border-2); border-radius: 99px; font-size: 13px; outline: none; background: var(--bg); color: var(--ink); transition: all .15s; }
+.filter-input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(29,110,245,.1); background: #fff; }
+.filter-count { font-size: 12px; color: var(--ink-4); white-space: nowrap; }
+
+/* PDF 离屏渲染容器：与页面布局隔离，避免 body padding / 滚动条影响截图 */
+#pdf-export-root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: visible;
+  background: #fff;
+  box-sizing: border-box;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="wordmark">
+    <div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div>
+  </div>
+  <h1 class="app-title">Word <span>Matrix</span></h1>
+  <p class="app-sub">纯净排版 · PDF内存渲染引擎</p>
+</div>
+
+<div class="card">
+  <div class="input-panel">
+    <div class="section-label">输入区域</div>
+    <div class="toolbar">
+      <input type="file" id="imgFile" accept="image/*" multiple style="display:none" onchange="doOCR()">
+      <button class="chip" onclick="document.getElementById('imgFile').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        批量上传图片 (多选)
+      </button>
+      <button class="chip" id="stopBtn" onclick="toggleStop()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
+        过滤简单高频词
+      </button>
+      <span class="ocr-msg" id="ocrMsg"></span>
+    </div>
+
+    <div class="textarea-wrap">
+      <textarea id="rawText" placeholder="粘贴英语原文，或点击上方批量上传截图..." oninput="countChars()"></textarea>
+      <span class="char-count" id="charCount">0 字符</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="goBtn" onclick="go()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        智能提取并翻译
+      </button>
+      <button class="btn-ghost" onclick="clearAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        清空重置
+      </button>
+    </div>
+  </div>
+
+  <div class="progress-panel" id="progPanel">
+    <div class="prog-row">
+      <span class="prog-label" id="progLabel">正在处理…</span>
+      <span class="prog-pct" id="progPct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-sub" id="progSub"></div>
+  </div>
+
+  <div class="results-panel" id="resultsPanel">
+    <div class="results-header">
+      <div class="stat-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        共 <b id="countLabel">0</b> 个单词
+      </div>
+      <div class="export-row">
+        <button class="btn-ghost sm" onclick="exportCSV()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          导出 CSV
+        </button>
+        <button class="btn-ghost sm" id="pdfBtn" onclick="exportPDF(this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          导出 PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-bar" id="filterBar">
+      <input class="filter-input" id="filterInput" type="text" placeholder="🔍 搜索单词或释义…" oninput="filterTable()">
+      <span class="filter-count" id="filterCount"></span>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="wordTable">
+          <thead>
+            <tr>
+              <th>单词 WORD</th>
+              <th>笔记 NOTES (双击编辑)</th>
+              <th>释义 MEANING</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ──── UTILS ────
+const STOPS = new Set(['a','an','the','and','or','but','if','in','on','at','to','by','of','out','is','are','was','were','be','been','am','have','has','had','do','does','did','will','would','can','could','should','may','not','no','this','that','these','those','i','you','he','she','it','we','they','me','him','her','us','them','my','your','his','its','our','their','what','which','who','when','where','why','how','all','some','such','just','only','very','too','also','there','here','now','then','than','as','for','with','about','up','so','go','get','put']);
+let stopFilter = false;
+let isTranslating = false;
+
+function countChars() { document.getElementById('charCount').textContent = document.getElementById('rawText').value.length.toLocaleString() + ' 字符'; }
+function toggleStop() { stopFilter = !stopFilter; document.getElementById('stopBtn').classList.toggle('on', stopFilter); }
+function show(id) { document.getElementById(id).classList.add('show'); }
+function hide(id) { document.getElementById(id).classList.remove('show'); }
+function setProgress(pct, label, sub) {
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progPct').textContent = Math.round(pct) + '%';
+  if (label !== undefined) document.getElementById('progLabel').textContent = label;
+  if (sub !== undefined) document.getElementById('progSub').textContent = sub;
+}
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast active ' + (type || '');
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+function clearAll() {
+  if(isTranslating) { toast('请等待翻译完成', 'err'); return; }
+  document.getElementById('rawText').value = '';
+  document.getElementById('ocrMsg').textContent = '';
+  document.getElementById('filterInput').value = '';
+  countChars(); hide('progPanel'); hide('resultsPanel');
+  document.getElementById('filterBar').classList.remove('show');
+}
+
+// ──── 多图 OCR ────
+async function doOCR() {
+  const files = document.getElementById('imgFile').files;
+  if (!files.length) return;
+  const msg = document.getElementById('ocrMsg');
+  msg.style.color = 'var(--amber)'; msg.textContent = `⏳ 准备识别 ${files.length} 张图片…`;
+  
+  let combined = document.getElementById('rawText').value;
+  if (combined) combined += '\n\n';
+  try {
+    for (let i = 0; i < files.length; i++) {
+      msg.textContent = `⏳ 扫描图片 ${i+1}/${files.length}…`;
+      const { data } = await Tesseract.recognize(files[i], 'eng');
+      combined += data.text.trim() + '\n';
+      document.getElementById('rawText').value = combined;
+      countChars();
+    }
+    msg.style.color = 'var(--green)'; msg.textContent = `✓ ${files.length} 张图片识别完成`;
+  } catch(e) { msg.style.color = 'var(--red)'; msg.textContent = '✗ 识别失败，请检查图片清晰度'; }
+  document.getElementById('imgFile').value = '';
+}
+
+function extractWords(text) {
+  const raw = (text.match(/\b[a-zA-Z']{2,}\b/g) || []).map(w => w.toLowerCase().replace(/^'+|'+$/g, ''));
+  let words = [...new Set(raw)].sort();
+  if (stopFilter) words = words.filter(w => !STOPS.has(w));
+  return words.filter(w => w.length >= 2 && /[a-z]/.test(w));
+}
+
+// ──── 谷歌双引擎 + 智能词性猜测 ────
+async function getOnlineDefinition(word) {
+  try {
+    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&dt=bd&q=${encodeURIComponent(word)}`);
+    const data = await res.json();
+    
+    let trans = ''; let posStr = ''; let hasDictPos = false;
+
+    // 1. 字典词性抓取
+    if (data[1] && data[1].length > 0 && data[1][0] && data[1][0][0]) {
+        let posCn = data[1][0][0];
+        let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.'};
+        if(posMap[posCn]) { posStr = posMap[posCn] + ' '; hasDictPos = true; }
+    }
+
+    // 2. 智能后缀推测算法
+    if (!hasDictPos) {
+        let lw = word.toLowerCase();
+        if (lw.endsWith('ness') || lw.endsWith('tion') || lw.endsWith('ity') || lw.endsWith('ment') || lw.endsWith('ism') || lw.endsWith('sion')) { posStr = 'n. '; } 
+        else if (lw.endsWith('ful') || lw.endsWith('ous') || lw.endsWith('able') || lw.endsWith('ive') || lw.endsWith('less') || lw.endsWith('al') || lw.endsWith('y')) { posStr = 'adj. '; } 
+        else if (lw.endsWith('ly')) { posStr = 'adv. '; } 
+        else if (lw.endsWith('ize') || lw.endsWith('ify') || lw.endsWith('ate')) { posStr = 'v. '; }
+    }
+
+    if(data && data[0] && data[0][0] && data[0][0][0]) {
+      trans = data[0][0][0].trim();
+      if (trans.toLowerCase() === word.toLowerCase()) return '手动添加';
+    }
+    return posStr + trans || '解析失败';
+  } catch (e) { return '网络获取失败'; }
+}
+
+const POS_CLASS = { 'n.':'pos-n', 'v.':'pos-v', 'adj.':'pos-adj', 'adv.':'pos-adv', 'pron.':'pos-pron', 'prep.':'pos-prep', 'conj.':'pos-conj' };
+
+function renderDef(td, text) {
+  if (!text) { td.innerHTML = ''; return; }
+  const m = text.match(/^([a-z]+\.)\s*([\s\S]+)$/);
+  if (m) {
+    const pos = m[1]; const cls = POS_CLASS[pos] || 'pos-other';
+    td.innerHTML = `<span class="pos-tag ${cls}">${pos}</span><span>${m[2]}</span>`;
+  } else { td.textContent = text; }
+}
+
+function buildRow(word) {
+  const tr = document.createElement('tr'); tr.dataset.word = word;
+  
+  const tdW = document.createElement('td'); tdW.className = 'word-cell'; tdW.textContent = word;
+  const tdN = document.createElement('td'); tdN.contentEditable = 'true';
+  const tdD = document.createElement('td'); tdD.id = 'def_' + word; tdD.dataset.plain = '';
+  tdD.contentEditable = 'true'; tdD.innerHTML = `<div class="def-loading"><div class="spinner"></div><span>获取中…</span></div>`;
+
+  tdD.addEventListener('focus', () => { tdD.textContent = tdD.dataset.plain; });
+  tdD.addEventListener('blur', () => { const t = tdD.innerText.trim(); tdD.dataset.plain = t; renderDef(tdD, t); });
+
+  const tdX = document.createElement('td');
+  const xBtn = document.createElement('button'); xBtn.className = 'del-btn no-print'; xBtn.innerHTML = '✕';
+  xBtn.onclick = () => {
+    tr.style.opacity = '0';
+    setTimeout(() => { tr.remove(); document.getElementById('countLabel').textContent = document.querySelectorAll('#tbody tr').length; }, 150);
+  };
+  tdX.appendChild(xBtn);
+
+  tr.append(tdW, tdN, tdD, tdX); return tr;
+}
+
+async function go() {
+  const text = document.getElementById('rawText').value.trim();
+  if (!text) { toast('请先输入内容', 'err'); return; }
+  const words = extractWords(text);
+  if (!words.length) { toast('未识别到英文单词', 'err'); return; }
+
+  const btn = document.getElementById('goBtn'); btn.disabled = true; isTranslating = true;
+  btn.innerHTML = `<div class="spinner" style="border-top-color:#fff"></div> 翻译中…`;
+
+  show('progPanel'); hide('resultsPanel'); document.getElementById('filterBar').classList.remove('show');
+  
+  const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
+  words.forEach(w => tbody.appendChild(buildRow(w)));
+  document.getElementById('countLabel').textContent = words.length;
+  show('resultsPanel');
+
+  let processed = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    setTimeout(async () => {
+      const def = await getOnlineDefinition(w);
+      const td = document.getElementById('def_' + w);
+      if (td) { td.dataset.plain = def; renderDef(td, def); }
+      processed++;
+      setProgress(5 + (processed / words.length) * 95, `正在智能翻译 (${processed}/${words.length})`, `当前词：${w}`);
+      
+      if (processed === words.length) {
+        setProgress(100, '✓ 全部翻译完成', '');
+        setTimeout(() => { hide('progPanel'); document.getElementById('filterBar').classList.add('show'); }, 1000);
+        btn.disabled = false; isTranslating = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> 重新提取`;
+        toast('✓ 翻译完成！', 'ok');
+      }
+    }, i * 150); 
+  }
+}
+
+function filterTable() {
+  const q = document.getElementById('filterInput').value.toLowerCase().trim();
+  let visible = 0;
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    const match = !q || (tr.dataset.word || '').includes(q) || (tr.querySelector('[id^="def_"]')?.dataset.plain || '').includes(q);
+    tr.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('filterCount').textContent = q ? `筛选结果：${visible}` : '';
+}
+
+function exportCSV() {
+  const rows = document.querySelectorAll('#wordTable tr'); let csv = '\uFEFF';
+  rows.forEach(row => {
+    if (row.style.display === 'none') return;
+    const cells = [...row.querySelectorAll('th,td')].slice(0, 3);
+    csv += cells.map(c => `"${c.innerText.replace(/"/g, '""').trim()}"`).join(',') + '\r\n';
+  });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `WordMatrix_单词表.csv`; a.click(); toast('✓ CSV 已导出', 'ok');
+}
+
+/* PDF：离屏 DOM + 精确 canvas 尺寸，避免顶部留白与内容裁切 */
+const PDF_CONTENT_W = 714; /* A4 可打印区宽度（96dpi，左右各 0.35in 边距） */
+
+function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function waitFrames(n) {
+  return new Promise(resolve => {
+    let left = n;
+    function tick() {
+      if (--left <= 0) resolve();
+      else requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+async function exportPDF(btn) {
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = `<div class="spinner" style="border-top-color:var(--ink)"></div> 生成中…`;
+  btn.disabled = true;
+
+  const rows = [];
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    rows.push({
+      word: tr.querySelector('.word-cell')?.textContent.trim() || '',
+      note: tr.querySelectorAll('td')[1]?.innerText.trim() || '',
+      def: tr.querySelector('[id^="def_"]')?.dataset.plain || tr.querySelector('[id^="def_"]')?.innerText.trim() || ''
+    });
+  });
+
+  if (!rows.length) {
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+    toast('没有可导出的单词', 'err');
+    return;
+  }
+
+  function pdfPosTag(text) {
+    const safe = escHtml(text);
+    if (!text) return '';
+    const m = String(text).match(/^([a-z]+\.)\s*([\s\S]+)$/);
+    if (!m) return `<span style="font-size:13px;line-height:1.5;">${safe}</span>`;
+    const pos = m[1];
+    const colors = { 'n.':'#1d6ef5', 'v.':'#059669', 'adj.':'#e11d48', 'adv.':'#d97706', 'pron.':'#9333ea', 'prep.':'#16a34a', 'conj.':'#ea580c' };
+    const bgs = { 'n.':'#eff4ff', 'v.':'#ecfdf5', 'adj.':'#fff1f2', 'adv.':'#fffbeb', 'pron.':'#fdf4ff', 'prep.':'#f0fdf4', 'conj.':'#fff7ed' };
+    const c = colors[pos] || '#64748b';
+    const bg = bgs[pos] || '#f1f5f9';
+    return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:5px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${escHtml(pos)}</span><span style="font-size:13px;line-height:1.5;vertical-align:middle;">${escHtml(m[2])}</span>`;
+  }
+
+  const rowsHTML = rows.map((r, i) => `
+    <tr style="page-break-inside:avoid;break-inside:avoid;background:${i % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:#0a0a0a;vertical-align:top;width:22%;word-break:break-word;">${escHtml(r.word)}</td>
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;vertical-align:top;width:28%;word-break:break-word;white-space:pre-wrap;">${escHtml(r.note)}</td>
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;vertical-align:top;width:50%;word-break:break-word;">${pdfPosTag(r.def)}</td>
+    </tr>`).join('');
+
+  const dateStr = new Date().toLocaleDateString('zh-CN');
+  const oldScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
+  let root = document.getElementById('pdf-export-root');
+  if (root) root.remove();
+  root = document.createElement('div');
+  root.id = 'pdf-export-root';
+  root.style.width = PDF_CONTENT_W + 'px';
+  root.innerHTML = `
+    <div class="pdf-inner" style="margin:0;padding:16px 18px 20px;font-family:'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#fff;color:#0a0a0a;width:${PDF_CONTENT_W}px;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:0 0 16px;padding:0 0 12px;border-bottom:2px solid #0a0a0a;">
+        <div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;color:#0a0a0a;">Word Matrix</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">专属单词本</div>
+        </div>
+        <div style="font-size:11px;color:#9ca3af;text-align:right;">${escHtml(dateStr)} · 共 ${rows.length} 词</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin:0;">
+        <thead>
+          <tr>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:22%;">单词 WORD</th>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:28%;">笔记 NOTES</th>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:50%;">中文释义 & 词性</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    </div>`;
+
+  document.body.appendChild(root);
+  await waitFrames(3);
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (_) {}
+  }
+
+  const inner = root.querySelector('.pdf-inner') || root;
+  const captureW = Math.ceil(inner.scrollWidth || PDF_CONTENT_W);
+  const captureH = Math.ceil(inner.scrollHeight || root.scrollHeight);
+
+  const finish = (ok, err) => {
+    root.remove();
+    window.scrollTo(0, oldScrollY);
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+    if (ok) toast('✓ 高清 PDF 导出成功！', 'ok');
+    else {
+      toast('✗ PDF 生成失败', 'err');
+      if (err) console.error(err);
+    }
+  };
+
+  try {
+    await html2pdf().set({
+      margin: [0.35, 0.35, 0.35, 0.35],
+      filename: `WordMatrix_${dateStr.replace(/\//g, '-')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        width: captureW,
+        height: captureH,
+        windowWidth: captureW,
+        windowHeight: captureH,
+        onclone: (clonedDoc) => {
+          const cloned = clonedDoc.getElementById('pdf-export-root');
+          if (!cloned) return;
+          cloned.style.cssText = 'position:relative;left:0;top:0;margin:0;padding:0;overflow:visible;background:#fff;opacity:1;visibility:visible;z-index:auto;';
+          const box = cloned.querySelector('.pdf-inner');
+          if (box) {
+            box.style.margin = '0';
+            box.style.padding = '16px 18px 20px';
+            box.style.overflow = 'visible';
+            box.style.height = 'auto';
+            box.style.maxHeight = 'none';
+          }
+        }
+      },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait', compress: true },
+      pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
+    }).from(root).save();
+    finish(true);
+  } catch (err) {
+    finish(false, err);
+  }
+}
+</script>
+</body>
+</html>
