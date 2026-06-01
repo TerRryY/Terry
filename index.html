@@ -548,7 +548,7 @@ tr:hover .del-btn { opacity: 1; }
 }
 .filter-count { font-size: 12px; color: var(--ink-4); white-space: nowrap; }
 
-/* PDF 离屏容器：白底打印，不受页面视频/主题影响 */
+/* PDF 离屏容器 */
 #pdf-export-root {
   position: fixed;
   left: 0;
@@ -592,11 +592,11 @@ tr:hover .del-btn { opacity: 1; }
       <input type="file" id="imgFile" accept="image/*" multiple style="display:none" onchange="doOCR()">
       <button class="chip" onclick="document.getElementById('imgFile').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-        批量上传图片 (多选)
+        智能扫描图片
       </button>
       <button class="chip" id="stopBtn" onclick="toggleStop()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
-        过滤简单高频词
+        过滤常见词汇
       </button>
       <span class="ocr-msg" id="ocrMsg"></span>
     </div>
@@ -673,7 +673,7 @@ tr:hover .del-btn { opacity: 1; }
 <div class="toast" id="toast"></div>
 
 <script>
-/* 自适应油画背景图（6 张花园场景，随机切换） */
+/* 自适应油画背景图 */
 (function initPhotoBg() {
   const wrap = document.getElementById('bgPhotoWrap');
   const imgA = document.getElementById('bgPhotoA');
@@ -681,14 +681,22 @@ tr:hover .del-btn { opacity: 1; }
   const regenBtn = document.getElementById('bgRegenBtn');
   if (!wrap || !imgA || !imgB) return;
 
+  function resolveAsset(relPath) {
+    const rel = relPath.replace(/^\//, '');
+    const path = location.pathname;
+    const last = path.split('/').pop() || '';
+    const base = last.includes('.') ? path.slice(0, path.length - last.length) : (path.endsWith('/') ? path : path + '/');
+    return location.origin + base + rel;
+  }
+
   const WALLPAPERS = [
-    { src: 'assets/bg/garden-roses.png', pos: 'center 72%', filter: 'brightness(0.9) saturate(1.15) contrast(1.03) sepia(0.05)' },
-    { src: 'assets/bg/meadow-hydrangea.png', pos: 'left 68%', filter: 'brightness(0.87) saturate(1.18) contrast(1.05) hue-rotate(-4deg)' },
-    { src: 'assets/bg/hydrangea-pink.png', pos: 'right 55%', filter: 'brightness(0.88) saturate(1.1) contrast(1.04) sepia(0.08)' },
-    { src: 'assets/bg/wildflower-field.png', pos: 'center 60%', filter: 'brightness(0.9) saturate(1.12) contrast(1.02)' },
-    { src: 'assets/bg/blossom-green.png', pos: 'center 65%', filter: 'brightness(0.89) saturate(1.14) contrast(1.04) sepia(0.04)' },
-    { src: 'assets/bg/meadow-pink.png', pos: 'left 70%', filter: 'brightness(0.91) saturate(1.08) contrast(1.03) sepia(0.1)' }
-  ];
+    { file: 'assets/bg/garden-roses.png', pos: 'center 72%', filter: 'brightness(0.9) saturate(1.15) contrast(1.03) sepia(0.05)' },
+    { file: 'assets/bg/meadow-hydrangea.png', pos: 'left 68%', filter: 'brightness(0.87) saturate(1.18) contrast(1.05) hue-rotate(-4deg)' },
+    { file: 'assets/bg/hydrangea-pink.png', pos: 'right 55%', filter: 'brightness(0.88) saturate(1.1) contrast(1.04) sepia(0.08)' },
+    { file: 'assets/bg/wildflower-field.png', pos: 'center 60%', filter: 'brightness(0.9) saturate(1.12) contrast(1.02)' },
+    { file: 'assets/bg/blossom-green.png', pos: 'center 65%', filter: 'brightness(0.89) saturate(1.14) contrast(1.04) sepia(0.04)' },
+    { file: 'assets/bg/meadow-pink.png', pos: 'left 70%', filter: 'brightness(0.91) saturate(1.08) contrast(1.03) sepia(0.1)' }
+  ].map(w => ({ ...w, src: resolveAsset(w.file) }));
 
   let active = imgA;
   let idle = imgB;
@@ -724,6 +732,7 @@ tr:hover .del-btn { opacity: 1; }
       idle.removeEventListener('load', onReady);
       idle.removeEventListener('error', onErr);
       wrap.classList.remove('is-loading');
+      console.warn('[Word Matrix] 背景图加载失败:', idle.src);
     };
 
     if (idle.complete && idle.naturalWidth > 0) onReady();
@@ -804,14 +813,12 @@ async function getOnlineDefinition(word) {
     
     let trans = ''; let posStr = ''; let hasDictPos = false;
 
-    // 1. 字典词性抓取
     if (data[1] && data[1].length > 0 && data[1][0] && data[1][0][0]) {
         let posCn = data[1][0][0];
         let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.'};
         if(posMap[posCn]) { posStr = posMap[posCn] + ' '; hasDictPos = true; }
     }
 
-    // 2. 智能后缀推测算法
     if (!hasDictPos) {
         let lw = word.toLowerCase();
         if (lw.endsWith('ness') || lw.endsWith('tion') || lw.endsWith('ity') || lw.endsWith('ment') || lw.endsWith('ism') || lw.endsWith('sion')) { posStr = 'n. '; } 
@@ -832,9 +839,9 @@ const POS_CLASS = { 'n.':'pos-n', 'v.':'pos-v', 'adj.':'pos-adj', 'adv.':'pos-ad
 
 function renderDef(td, text) {
   if (!text) { td.innerHTML = ''; return; }
-  const m = text.match(/^([a-z]+\.)\s*([\s\S]+)$/);
+  const m = text.match(/^([a-z]+\.)\s*([\s\S]+)$/i);
   if (m) {
-    const pos = m[1]; const cls = POS_CLASS[pos] || 'pos-other';
+    const pos = m[1]; const cls = POS_CLASS[pos.toLowerCase()] || 'pos-other';
     td.innerHTML = `<span class="pos-tag ${cls}">${pos}</span><span>${m[2]}</span>`;
   } else { td.textContent = text; }
 }
@@ -844,11 +851,20 @@ function buildRow(word) {
   
   const tdW = document.createElement('td'); tdW.className = 'word-cell'; tdW.textContent = word;
   const tdN = document.createElement('td'); tdN.contentEditable = 'true';
-  const tdD = document.createElement('td'); tdD.id = 'def_' + word; tdD.dataset.plain = '';
-  tdD.contentEditable = 'true'; tdD.innerHTML = `<div class="def-loading"><div class="spinner"></div><span>获取中…</span></div>`;
+  
+  const tdD = document.createElement('td'); tdD.id = 'def_' + word; 
+  tdD.dataset.plain = '';
+  tdD.setAttribute('data-plain', ''); // 强力备份，防止 PDF 抓取不到数据
+  tdD.contentEditable = 'true'; 
+  tdD.innerHTML = `<div class="def-loading"><div class="spinner"></div><span>获取中…</span></div>`;
 
   tdD.addEventListener('focus', () => { tdD.textContent = tdD.dataset.plain; });
-  tdD.addEventListener('blur', () => { const t = tdD.innerText.trim(); tdD.dataset.plain = t; renderDef(tdD, t); });
+  tdD.addEventListener('blur', () => { 
+    const t = tdD.innerText.trim(); 
+    tdD.dataset.plain = t; 
+    tdD.setAttribute('data-plain', t); // 用户修改后也必须备份
+    renderDef(tdD, t); 
+  });
 
   const tdX = document.createElement('td');
   const xBtn = document.createElement('button'); xBtn.className = 'del-btn no-print'; xBtn.innerHTML = '✕';
@@ -883,7 +899,11 @@ async function go() {
     setTimeout(async () => {
       const def = await getOnlineDefinition(w);
       const td = document.getElementById('def_' + w);
-      if (td) { td.dataset.plain = def; renderDef(td, def); }
+      if (td) { 
+        td.dataset.plain = def; 
+        td.setAttribute('data-plain', def); // API 抓取后写入备份属性
+        renderDef(td, def); 
+      }
       processed++;
       setProgress(5 + (processed / words.length) * 95, `正在智能翻译 (${processed}/${words.length})`, `当前词：${w}`);
       
@@ -920,8 +940,8 @@ function exportCSV() {
   a.download = `WordMatrix_单词表.csv`; a.click(); toast('✓ CSV 已导出', 'ok');
 }
 
-/* PDF：离屏 DOM + 精确 canvas 尺寸，避免顶部留白与内容裁切 */
-const PDF_CONTENT_W = 714; /* A4 可打印区宽度（96dpi，左右各 0.35in 边距） */
+/* ──────────── 【绝杀修复】PDF底层渲染引擎 ──────────── */
+const PDF_CONTENT_W = 714; 
 
 function escHtml(s) {
   return String(s ?? '')
@@ -947,13 +967,22 @@ async function exportPDF(btn) {
   btn.innerHTML = `<div class="spinner" style="border-top-color:var(--ink)"></div> 生成中…`;
   btn.disabled = true;
 
+  // 1. 安全抓取数据（优先读取强力备份 data-plain，如果没有就读 innerText）
   const rows = [];
   document.querySelectorAll('#tbody tr').forEach(tr => {
     if (tr.style.display === 'none') return;
+    
+    const defCell = tr.querySelector('[id^="def_"]');
+    let defText = '';
+    if (defCell) {
+      defText = defCell.getAttribute('data-plain') || defCell.dataset.plain || defCell.innerText || '';
+      defText = defText.replace(/获取中…/g, '').trim();
+    }
+
     rows.push({
       word: tr.querySelector('.word-cell')?.textContent.trim() || '',
       note: tr.querySelectorAll('td')[1]?.innerText.trim() || '',
-      def: tr.querySelector('[id^="def_"]')?.dataset.plain || tr.querySelector('[id^="def_"]')?.innerText.trim() || ''
+      def: defText
     });
   });
 
@@ -964,17 +993,21 @@ async function exportPDF(btn) {
     return;
   }
 
+  // 2. 强力 PDF 专用中文标签渲染
+  // 必须直接在 span 上硬编码 color:#111 和中文字体，这是攻克 html2canvas 字体空白 Bug 的杀手锏
   function pdfPosTag(text) {
     const safe = escHtml(text);
     if (!text) return '';
-    const m = String(text).match(/^([a-z]+\.)\s*([\s\S]+)$/);
-    if (!m) return `<span style="font-size:13px;line-height:1.5;">${safe}</span>`;
-    const pos = m[1];
+    const m = String(text).match(/^([a-z]+\.)\s*([\s\S]+)$/i);
+    if (!m) return `<span style="font-size:13px;line-height:1.5;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">${safe}</span>`;
+    
+    const pos = m[1].toLowerCase();
     const colors = { 'n.':'#1d6ef5', 'v.':'#059669', 'adj.':'#e11d48', 'adv.':'#d97706', 'pron.':'#9333ea', 'prep.':'#16a34a', 'conj.':'#ea580c' };
     const bgs = { 'n.':'#eff4ff', 'v.':'#ecfdf5', 'adj.':'#fff1f2', 'adv.':'#fffbeb', 'pron.':'#fdf4ff', 'prep.':'#f0fdf4', 'conj.':'#fff7ed' };
     const c = colors[pos] || '#64748b';
     const bg = bgs[pos] || '#f1f5f9';
-    return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:5px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${escHtml(pos)}</span><span style="font-size:13px;line-height:1.5;vertical-align:middle;">${escHtml(m[2])}</span>`;
+    
+    return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:6px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${escHtml(m[1])}</span><span style="font-size:13px;line-height:1.5;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(m[2])}</span>`;
   }
 
   const rowsHTML = rows.map((r, i) => `
