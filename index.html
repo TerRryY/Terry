@@ -906,8 +906,24 @@ function normalizePhonetic(text) {
   let t = String(text || '').trim();
   if (!t) return '';
   t = t.replace(/^IPA\s*:?/i, '').trim();
-  if ((t.startsWith('/') && t.endsWith('/')) || (t.startsWith('[') && t.endsWith(']'))) return t;
-  if (/^[a-z\s.'ˈˌːɪʊəɛæɑɒɔʌɜθðʃʒŋɡɚɝ̃-]+$/i.test(t)) return `/${t}/`;
+  // 已规范格式 /.../ 或 [...]，验证内部非空
+  if ((t.startsWith('/') && t.endsWith('/')) || (t.startsWith('[') && t.endsWith(']'))) {
+    return t.slice(1, -1).trim() ? t : '';
+  }
+  // 【升级】完整 IPA 字符集，覆盖全部 Unicode IPA 区间：
+  // a-z/A-Z        基本拉丁（IPA 借用）
+  // \u00E6 æ       前低元音
+  // \u00F0 ð       浊齿摩擦音
+  // \u00F8 ø       圆唇前元音
+  // \u014B ŋ       软腭鼻音（Latin Extended-A，旧正则遗漏）
+  // \u0153 œ       圆唇半开前元音
+  // \u03B8 θ       清齿摩擦音（Greek block，旧正则遗漏）
+  // \u0250-\u02AF  IPA 扩展区（完整 80 个 IPA 专用字符，含 ɹɾʔʤʧɫ 等全部旧正则遗漏字符）
+  // \u02B0-\u02FF  间距修饰字母（ˈˌːˑ 等声调/长音标记）
+  // \u0300-\u036F  组合变音符（鼻化 ̃、超短 ̆ 等）
+  // \u1D00-\u1DBF  语音学扩展（小型大写字母等）
+  const IPA_PAT = /^[a-zA-Z\s.\-,'\u00E6\u00F0\u00F8\u014B\u0153\u03B8\u0250-\u02FF\u0300-\u036F\u1D00-\u1DBF]+$/;
+  if (IPA_PAT.test(t) && t.length >= 1) return `/${t}/`;
   return '';
 }
 
@@ -950,15 +966,26 @@ function getPhoneticCandidates(word) {
 }
 
 function pickPhoneticFromDictionaryEntry(entry) {
+  // 1. 直接 phonetic 字段
   const direct = normalizePhonetic(entry?.phonetic);
   if (direct) return direct;
 
   const phonetics = Array.isArray(entry?.phonetics) ? entry.phonetics : [];
+
+  // 2. 有音频的优先：美式发音 > 其他带音频
+  const usPhone = phonetics.find(p => p.audio && /us|american/i.test(p.audio) && normalizePhonetic(p.text));
+  if (usPhone) return normalizePhonetic(usPhone.text);
+
   const withAudio = phonetics.find(p => p.audio && normalizePhonetic(p.text));
   if (withAudio) return normalizePhonetic(withAudio.text);
 
-  const firstText = phonetics.find(p => normalizePhonetic(p.text));
-  return firstText ? normalizePhonetic(firstText.text) : '';
+  // 3. 无音频但有文本的
+  for (const p of phonetics) {
+    const phone = normalizePhonetic(p.text);
+    if (phone) return phone;
+  }
+
+  return '';
 }
 
 function pickPhoneticFromGoogleData(data) {
@@ -970,7 +997,10 @@ function pickPhoneticFromGoogleData(data) {
     if (typeof item === 'object') seen.add(item);
     if (typeof item === 'string') {
       const phone = normalizePhonetic(item);
-      if (phone && /[ˈˌəæɪʊɛɑɒɔʌɜθðʃʒŋ]/.test(phone)) return phone;
+      // 【升级】改用 Unicode 范围验证 IPA 特征字符，覆盖旧版遗漏的所有 IPA 符号
+      // U+0250-U+02FF: IPA 扩展区 + 间距修饰字母
+      // 同时保留 æ/ð/ø/ŋ/θ 等非扩展区常用 IPA 字母
+      if (phone && /[\u0250-\u02FF\u00E6\u00F0\u00F8\u014B\u0153\u03B8]/.test(phone)) return phone;
       continue;
     }
     if (Array.isArray(item)) stack.push(...item);
@@ -979,7 +1009,7 @@ function pickPhoneticFromGoogleData(data) {
   return '';
 }
 
-async function fetchJSONWithTimeout(url, timeout = 3200) {
+async function fetchJSONWithTimeout(url, timeout = 5000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
@@ -992,6 +1022,33 @@ async function fetchJSONWithTimeout(url, timeout = 3200) {
     clearTimeout(timer);
   }
 }
+
+// ──── 【新增】Wiktionary 音标备用源（DictionaryAPI 查不到时自动触发）────
+async function fetchWiktionaryPhonetic(word) {
+  try {
+    const url = `https://en.wiktionary.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&titles=${encodeURIComponent(word)}&origin=*`;
+    const data = await fetchJSONWithTimeout(url, 5000);
+    if (!data?.query?.pages) return '';
+    const pages = Object.values(data.query.pages);
+    if (!pages.length || 'missing' in (pages[0] || {})) return '';
+    const content = pages[0]?.revisions?.[0]?.slots?.main?.['*'] ||
+                    pages[0]?.revisions?.[0]?.['*'] || '';
+    if (!content) return '';
+    // 匹配 {{IPA|en|/phonetic/}} 或 {{IPA|en|[phonetic]}}
+    const m = content.match(/\{\{(?:IPA|ipa)\|en\|([/\[][^|}]{1,80}[/\]])/);
+    if (m) {
+      const raw = m[1].split('|')[0].trim();
+      const phone = normalizePhonetic(raw);
+      if (phone) return phone;
+    }
+    return '';
+  } catch (_) {
+    return '';
+  }
+}
+
+// ──── 【新增】音标内存缓存（同次会话内不重复请求）────
+const _phoneticCache = new Map();
 
 async function getDictionaryPhonetic(word) {
   try {
@@ -1008,10 +1065,33 @@ async function getDictionaryPhonetic(word) {
 }
 
 async function getBestDictionaryPhonetic(word) {
-  for (const item of getPhoneticCandidates(word)) {
+  const cacheKey = word.toLowerCase();
+  if (_phoneticCache.has(cacheKey)) return _phoneticCache.get(cacheKey);
+
+  const candidates = getPhoneticCandidates(word);
+  const primary = candidates[0];
+
+  // 【升级】主词形：DictionaryAPI + Wiktionary 并发查询，取最快成功的
+  const [dictPhone, wikiPhone] = await Promise.all([
+    getDictionaryPhonetic(primary),
+    fetchWiktionaryPhonetic(primary)
+  ]);
+  const primaryResult = dictPhone || wikiPhone;
+  if (primaryResult) { _phoneticCache.set(cacheKey, primaryResult); return primaryResult; }
+
+  // 变体词形：逐一尝试 DictionaryAPI
+  for (const item of candidates.slice(1)) {
     const phone = await getDictionaryPhonetic(item);
-    if (phone) return phone;
+    if (phone) { _phoneticCache.set(cacheKey, phone); return phone; }
   }
+
+  // 终极降级：变体词形尝试 Wiktionary（最多查前 2 个变体）
+  for (const item of candidates.slice(1, 3)) {
+    const phone = await fetchWiktionaryPhonetic(item);
+    if (phone) { _phoneticCache.set(cacheKey, phone); return phone; }
+  }
+
+  _phoneticCache.set(cacheKey, '');
   return '';
 }
 
