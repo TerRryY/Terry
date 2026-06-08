@@ -456,7 +456,20 @@ tbody td[contenteditable="true"]:focus {
 .pos-pron { background: rgba(192,132,252,.18); color: #d8b4fe; }
 .pos-prep { background: rgba(74,222,128,.15); color: #86efac; }
 .pos-conj { background: rgba(251,146,60,.18); color: #fdba74; }
+.pos-num  { background: rgba(6,182,212,.15); color: #67e8f9; }
+.pos-int  { background: rgba(225,29,72,.15); color: #fda4af; }
+.pos-abbr { background: rgba(255,255,255,.1); color: #cbd5e1; }
 .pos-other{ background: rgba(255,255,255,.1); color: rgba(255,255,255,.65); }
+
+.phonetic {
+  display: inline-block;
+  margin-right: 8px;
+  color: rgba(255,255,255,.72);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
 
 .def-loading { display: flex; align-items: center; gap: 8px; color: var(--ink-4); font-size: 13px; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -889,53 +902,207 @@ function extractWords(text) {
   return words.filter(w => w.length >= 2 && /[a-z]/.test(w));
 }
 
-// ──── 谷歌双引擎 + 智能词性猜测 ────
+function normalizePhonetic(text) {
+  let t = String(text || '').trim();
+  if (!t) return '';
+  t = t.replace(/^IPA\s*:?/i, '').trim();
+  if ((t.startsWith('/') && t.endsWith('/')) || (t.startsWith('[') && t.endsWith(']'))) return t;
+  if (/^[a-z\s.'ˈˌːɪʊəɛæɑɒɔʌɜθðʃʒŋɡɚɝ̃-]+$/i.test(t)) return `/${t}/`;
+  return '';
+}
+
+function getPhoneticCandidates(word) {
+  const w = String(word || '').toLowerCase().replace(/[^a-z'-]/g, '');
+  const list = [w];
+  const add = v => {
+    if (v && v.length > 1 && !list.includes(v)) list.push(v);
+  };
+
+  if (w.endsWith("'s")) add(w.slice(0, -2));
+  if (w.endsWith("s'")) add(w.slice(0, -2));
+  if (w.endsWith('ies') && w.length > 4) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('ves') && w.length > 4) {
+    add(w.slice(0, -3) + 'f');
+    add(w.slice(0, -3) + 'fe');
+  }
+  if (w.endsWith('es') && w.length > 3) add(w.slice(0, -2));
+  if (w.endsWith('s') && w.length > 3) add(w.slice(0, -1));
+  if (w.endsWith('ied') && w.length > 4) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('ed') && w.length > 4) {
+    add(w.slice(0, -2));
+    add(w.slice(0, -1));
+  }
+  if (w.endsWith('ing') && w.length > 5) {
+    const stem = w.slice(0, -3);
+    add(stem);
+    add(stem + 'e');
+    if (/([b-df-hj-np-tv-z])\1$/i.test(stem)) add(stem.slice(0, -1));
+  }
+  if (w.endsWith('er') && w.length > 4) {
+    add(w.slice(0, -2));
+    add(w.slice(0, -1));
+  }
+  if (w.endsWith('est') && w.length > 5) {
+    add(w.slice(0, -3));
+    add(w.slice(0, -2));
+  }
+  return list;
+}
+
+function pickPhoneticFromDictionaryEntry(entry) {
+  const direct = normalizePhonetic(entry?.phonetic);
+  if (direct) return direct;
+
+  const phonetics = Array.isArray(entry?.phonetics) ? entry.phonetics : [];
+  const withAudio = phonetics.find(p => p.audio && normalizePhonetic(p.text));
+  if (withAudio) return normalizePhonetic(withAudio.text);
+
+  const firstText = phonetics.find(p => normalizePhonetic(p.text));
+  return firstText ? normalizePhonetic(firstText.text) : '';
+}
+
+function pickPhoneticFromGoogleData(data) {
+  const seen = new Set();
+  const stack = [data];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || seen.has(item)) continue;
+    if (typeof item === 'object') seen.add(item);
+    if (typeof item === 'string') {
+      const phone = normalizePhonetic(item);
+      if (phone && /[ˈˌəæɪʊɛɑɒɔʌɜθðʃʒŋ]/.test(phone)) return phone;
+      continue;
+    }
+    if (Array.isArray(item)) stack.push(...item);
+    else if (typeof item === 'object') stack.push(...Object.values(item));
+  }
+  return '';
+}
+
+async function fetchJSONWithTimeout(url, timeout = 3200) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getDictionaryPhonetic(word) {
+  try {
+    const data = await fetchJSONWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    const entries = Array.isArray(data) ? data : [];
+    for (const entry of entries) {
+      const phone = pickPhoneticFromDictionaryEntry(entry);
+      if (phone) return phone;
+    }
+    return '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function getBestDictionaryPhonetic(word) {
+  for (const item of getPhoneticCandidates(word)) {
+    const phone = await getDictionaryPhonetic(item);
+    if (phone) return phone;
+  }
+  return '';
+}
+
+// ──── 谷歌双引擎 + 智能多重词性并发 ────
 async function getOnlineDefinition(word) {
   try {
+    const phoneticPromise = getBestDictionaryPhonetic(word);
     const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&dt=bd&q=${encodeURIComponent(word)}`);
     const data = await res.json();
+    const phonetic = await phoneticPromise || pickPhoneticFromGoogleData(data);
     
-    let trans = ''; let posStr = ''; let hasDictPos = false;
+    let trans = ''; 
+    let hasDictPos = false;
 
-    // 解析词典详细结果
-    if (data[1] && data[1].length > 0 && data[1][0]) {
-        let posCn = data[1][0][0];
-        let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.'};
-        if(posMap[posCn]) { posStr = posMap[posCn] + ' '; hasDictPos = true; }
+    // 解析词典详细结果：支持并发多词性提取
+    if (data[1] && data[1].length > 0) {
+        hasDictPos = true;
+        let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.', '数词':'num.', '感叹词':'int.', '缩写':'abbr.'};
+        let allDefs = [];
         
-        // 【核心修改点】提取多个中文释义，最多取前 4 个，用逗号连接
-        if (data[1][0][1] && Array.isArray(data[1][0][1])) {
-            trans = data[1][0][1].slice(0, 4).join('，'); 
+        // 最多提取前 3 个核心词性，防止排版过长
+        for (let i = 0; i < Math.min(data[1].length, 3); i++) {
+            let part = data[1][i];
+            let posCn = part[0];
+            let posEn = posMap[posCn] || '';
+            
+            let transList = '';
+            // 每个词性最多提取 4 个释义
+            if (part[1] && Array.isArray(part[1])) {
+                transList = part[1].slice(0, 4).join('，'); 
+            }
+            
+            if (posEn && transList) {
+                allDefs.push(`${posEn} ${transList}`);
+            } else if (transList) {
+                allDefs.push(transList);
+            }
         }
+        trans = allDefs.join('； ');
     }
 
+    // 如果字典中没有多重释义，启用智能尾缀猜测降级模式
     if (!hasDictPos) {
+        let posStr = '';
         let lw = word.toLowerCase();
         if (lw.endsWith('ness') || lw.endsWith('tion') || lw.endsWith('ity') || lw.endsWith('ment') || lw.endsWith('ism') || lw.endsWith('sion')) { posStr = 'n. '; } 
         else if (lw.endsWith('ful') || lw.endsWith('ous') || lw.endsWith('able') || lw.endsWith('ive') || lw.endsWith('less') || lw.endsWith('al') || lw.endsWith('y')) { posStr = 'adj. '; } 
         else if (lw.endsWith('ly')) { posStr = 'adv. '; } 
         else if (lw.endsWith('ize') || lw.endsWith('ify') || lw.endsWith('ate')) { posStr = 'v. '; }
-    }
-
-    // 如果词典里没有多重释义（比如过于基础的词），降级使用单一基础翻译
-    if (!trans && data && data[0] && data[0][0] && data[0][0][0]) {
-      trans = data[0][0][0].trim();
-      if (trans.toLowerCase() === word.toLowerCase()) return '手动添加';
+        
+        if (data && data[0] && data[0][0] && data[0][0][0]) {
+            trans = posStr + data[0][0][0].trim();
+            if (trans.toLowerCase() === word.toLowerCase()) return '手动添加';
+        }
     }
     
-    return posStr + trans || '解析失败';
+    if (phonetic && trans) {
+      trans = trans.replace(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i, `$1 ${phonetic} `);
+      if (!trans.includes(phonetic)) trans = `${phonetic} ${trans}`;
+    }
+    return trans || '解析失败';
   } catch (e) { return '网络获取失败'; }
 }
 
-const POS_CLASS = { 'n.':'pos-n', 'v.':'pos-v', 'adj.':'pos-adj', 'adv.':'pos-adv', 'pron.':'pos-pron', 'prep.':'pos-prep', 'conj.':'pos-conj' };
+const POS_CLASS = { 'n.':'pos-n', 'v.':'pos-v', 'adj.':'pos-adj', 'adv.':'pos-adv', 'pron.':'pos-pron', 'prep.':'pos-prep', 'conj.':'pos-conj', 'num.':'pos-num', 'int.':'pos-int', 'abbr.':'pos-abbr' };
 
+// 简洁释义渲染：保留原来的干净样貌，只把第一个词性做标签。
 function renderDef(td, text) {
   if (!text) { td.innerHTML = ''; return; }
-  const m = text.match(/^([a-z]+\.)\s*([\s\S]+)$/i);
+  
+  let raw = String(text).trim();
+  
+  // 兼容旧格式：如果音标在最前面，自动挪到第一个词性后面。
+  const leadingPhone = raw.match(/^(\/[^/]+\/|\[[^\]]+\])\s*/);
+  if (leadingPhone) {
+    raw = raw.substring(leadingPhone[0].length);
+    const posAtStart = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i);
+    raw = posAtStart
+      ? raw.replace(posAtStart[0], `${posAtStart[1]} ${leadingPhone[1]} `)
+      : `${leadingPhone[1]} ${raw}`;
+  }
+
+  const m = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*(\/[^/]+\/|\[[^\]]+\])?\s*([\s\S]+)$/i);
   if (m) {
-    const pos = m[1]; const cls = POS_CLASS[pos.toLowerCase()] || 'pos-other';
-    td.innerHTML = `<span class="pos-tag ${cls}">${pos}</span><span>${m[2]}</span>`;
-  } else { td.textContent = text; }
+    const pos = m[1].toLowerCase();
+    const cls = POS_CLASS[pos] || 'pos-other';
+    const phonetic = m[2] ? `<span class="phonetic">${escHtml(m[2])}</span>` : '';
+    td.innerHTML = `<span class="pos-tag ${cls}">${pos}</span>${phonetic}<span>${escHtml(m[3])}</span>`;
+  } else {
+    td.textContent = raw;
+  }
 }
 
 function buildRow(word) {
@@ -1032,7 +1199,7 @@ function exportCSV() {
   a.download = `WordMatrix_单词表.csv`; a.click(); toast('✓ CSV 已导出', 'ok');
 }
 
-/* ──────────── 【绝杀修复】PDF底层渲染引擎 ──────────── */
+/* ──────────── 【绝杀修复】PDF底层多词性兼容渲染引擎 ──────────── */
 const PDF_CONTENT_W = 714; 
 
 function escHtml(s) {
@@ -1085,21 +1252,36 @@ async function exportPDF(btn) {
     return;
   }
 
-  // 2. 强力 PDF 专用中文标签渲染
-  // 必须直接在 span 上硬编码 color:#111 和中文字体，这是攻克 html2canvas 字体空白 Bug 的杀手锏
+  // 2. PDF 释义渲染：保留干净表格感，只强调第一个词性。
   function pdfPosTag(text) {
-    const safe = escHtml(text);
     if (!text) return '';
-    const m = String(text).match(/^([a-z]+\.)\s*([\s\S]+)$/i);
-    if (!m) return `<span style="font-size:13px;line-height:1.5;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;">${safe}</span>`;
     
-    const pos = m[1].toLowerCase();
-    const colors = { 'n.':'#1d6ef5', 'v.':'#059669', 'adj.':'#e11d48', 'adv.':'#d97706', 'pron.':'#9333ea', 'prep.':'#16a34a', 'conj.':'#ea580c' };
-    const bgs = { 'n.':'#eff4ff', 'v.':'#ecfdf5', 'adj.':'#fff1f2', 'adv.':'#fffbeb', 'pron.':'#fdf4ff', 'prep.':'#f0fdf4', 'conj.':'#fff7ed' };
-    const c = colors[pos] || '#64748b';
-    const bg = bgs[pos] || '#f1f5f9';
+    let raw = String(text);
     
-    return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:6px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${escHtml(m[1])}</span><span style="font-size:13px;line-height:1.5;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(m[2])}</span>`;
+    // 兼容旧格式：如果音标在最前面，自动挪到第一个词性后面。
+    const leadingPhone = raw.match(/^(\/[^/]+\/|\[[^\]]+\])\s*/);
+    if (leadingPhone) {
+      raw = raw.substring(leadingPhone[0].length);
+      const posAtStart = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i);
+      raw = posAtStart
+        ? raw.replace(posAtStart[0], `${posAtStart[1]} ${leadingPhone[1]} `)
+        : `${leadingPhone[1]} ${raw}`;
+    }
+    
+    // 完整配色图谱
+    const colors = { 'n.':'#1d6ef5', 'v.':'#059669', 'adj.':'#e11d48', 'adv.':'#d97706', 'pron.':'#9333ea', 'prep.':'#16a34a', 'conj.':'#ea580c', 'num.':'#0891b2', 'int.':'#be123c', 'abbr.':'#64748b' };
+    const bgs = { 'n.':'#eff4ff', 'v.':'#ecfdf5', 'adj.':'#fff1f2', 'adv.':'#fffbeb', 'pron.':'#fdf4ff', 'prep.':'#f0fdf4', 'conj.':'#fff7ed', 'num.':'#ecfeff', 'int.':'#fff1f2', 'abbr.':'#f1f5f9' };
+
+    const m = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*(\/[^/]+\/|\[[^\]]+\])?\s*([\s\S]+)$/i);
+    if (m) {
+      const p = m[1].toLowerCase();
+      const c = colors[p] || '#64748b';
+      const bg = bgs[p] || '#f1f5f9';
+      const phonetic = m[2] ? `<span style="display:inline-block;font-size:11px;margin-right:7px;color:#4b5563;font-family:monospace;vertical-align:middle;white-space:nowrap;">${escHtml(m[2])}</span>` : '';
+      return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:6px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${p}</span>${phonetic}<span style="font-size:13px;line-height:1.55;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(m[3])}</span>`;
+    }
+    
+    return `<span style="font-size:13px;line-height:1.55;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(raw)}</span>`;
   }
 
   const rowsHTML = rows.map((r, i) => `
