@@ -776,7 +776,80 @@ function clearAll() {
   document.getElementById('filterBar').classList.remove('show');
 }
 
-// ──── 多图 OCR ────
+// ──── 多图 OCR：图片增强 + 英文词汇识别优化 ────
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image load failed'));
+    };
+    img.src = url;
+  });
+}
+
+function clampByte(v) {
+  return Math.max(0, Math.min(255, v));
+}
+
+async function preprocessOCRImage(file) {
+  const img = await loadImageFile(file);
+  const maxSide = 2600;
+  const longSide = Math.max(img.width, img.height);
+  const scale = longSide > maxSide ? maxSide / longSide : Math.min(3, Math.max(1, 1600 / longSide));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const image = ctx.getImageData(0, 0, w, h);
+  const data = image.data;
+  const gray = new Uint8ClampedArray(w * h);
+  let sum = 0;
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    gray[p] = g;
+    sum += g;
+  }
+
+  const avg = sum / gray.length;
+  const threshold = Math.max(115, Math.min(185, avg * 0.92));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      const center = gray[p];
+      const left = gray[p - 1] ?? center;
+      const right = gray[p + 1] ?? center;
+      const up = gray[p - w] ?? center;
+      const down = gray[p + w] ?? center;
+      const sharp = clampByte(center * 1.85 - (left + right + up + down) * 0.2125);
+      const contrast = clampByte((sharp - 128) * 1.55 + 128);
+      const v = contrast < threshold ? 0 : 255;
+      const i = p * 4;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return new Promise(resolve => canvas.toBlob(blob => resolve(blob || file), 'image/png'));
+}
+
 async function doOCR() {
   const files = document.getElementById('imgFile').files;
   if (!files.length) return;
@@ -787,13 +860,24 @@ async function doOCR() {
   if (combined) combined += '\n\n';
   try {
     for (let i = 0; i < files.length; i++) {
-      msg.textContent = `⏳ 扫描图片 ${i+1}/${files.length}…`;
-      const { data } = await Tesseract.recognize(files[i], 'eng');
+      msg.textContent = `⏳ 增强图片 ${i+1}/${files.length}…`;
+      const enhanced = await preprocessOCRImage(files[i]);
+      msg.textContent = `⏳ 精准扫描 ${i+1}/${files.length}…`;
+      const { data } = await Tesseract.recognize(enhanced, 'eng', {
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' -",
+        preserve_interword_spaces: '1',
+        tessedit_pageseg_mode: '6',
+        logger: m => {
+          if (m.status === 'recognizing text' && Number.isFinite(m.progress)) {
+            msg.textContent = `⏳ 精准扫描 ${i+1}/${files.length} · ${Math.round(m.progress * 100)}%`;
+          }
+        }
+      });
       combined += data.text.trim() + '\n';
       document.getElementById('rawText').value = combined;
       countChars();
     }
-    msg.style.color = 'var(--green)'; msg.textContent = `✓ ${files.length} 张图片识别完成`;
+    msg.style.color = 'var(--green)'; msg.textContent = `✓ ${files.length} 张图片增强识别完成`;
   } catch(e) { msg.style.color = 'var(--red)'; msg.textContent = '✗ 识别失败，请检查图片清晰度'; }
   document.getElementById('imgFile').value = '';
 }
@@ -813,10 +897,16 @@ async function getOnlineDefinition(word) {
     
     let trans = ''; let posStr = ''; let hasDictPos = false;
 
-    if (data[1] && data[1].length > 0 && data[1][0] && data[1][0][0]) {
+    // 解析词典详细结果
+    if (data[1] && data[1].length > 0 && data[1][0]) {
         let posCn = data[1][0][0];
         let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.'};
         if(posMap[posCn]) { posStr = posMap[posCn] + ' '; hasDictPos = true; }
+        
+        // 【核心修改点】提取多个中文释义，最多取前 4 个，用逗号连接
+        if (data[1][0][1] && Array.isArray(data[1][0][1])) {
+            trans = data[1][0][1].slice(0, 4).join('，'); 
+        }
     }
 
     if (!hasDictPos) {
@@ -827,10 +917,12 @@ async function getOnlineDefinition(word) {
         else if (lw.endsWith('ize') || lw.endsWith('ify') || lw.endsWith('ate')) { posStr = 'v. '; }
     }
 
-    if(data && data[0] && data[0][0] && data[0][0][0]) {
+    // 如果词典里没有多重释义（比如过于基础的词），降级使用单一基础翻译
+    if (!trans && data && data[0] && data[0][0] && data[0][0][0]) {
       trans = data[0][0][0].trim();
       if (trans.toLowerCase() === word.toLowerCase()) return '手动添加';
     }
+    
     return posStr + trans || '解析失败';
   } catch (e) { return '网络获取失败'; }
 }
