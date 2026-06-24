@@ -1095,6 +1095,190 @@ async function getBestDictionaryPhonetic(word) {
   return '';
 }
 
+// 常见多义词优先使用更符合学习场景的释义，避免在线翻译把孤立单词带到冷门义项。
+const COMMON_TRANSLATIONS = {
+  ability: 'n. 能力，本领',
+  able: 'adj. 能够的，有能力的',
+  abroad: 'adv. 在国外，到国外',
+  accept: 'v. 接受，同意',
+  accident: 'n. 事故，意外',
+  account: 'n. 账户；描述，说明；v. 解释',
+  achieve: 'v. 实现，达到',
+  across: 'prep. 穿过，横过；adv. 在对面',
+  act: 'v. 行动，表现；n. 行为，法案',
+  actually: 'adv. 实际上，事实上',
+  address: 'n. 地址；演讲；v. 处理，向...讲话',
+  affect: 'v. 影响',
+  afford: 'v. 买得起，承担得起',
+  agree: 'v. 同意，赞成',
+  allow: 'v. 允许，使可能',
+  almost: 'adv. 几乎，差不多',
+  alone: 'adj. 单独的；adv. 独自',
+  although: 'conj. 虽然，尽管',
+  among: 'prep. 在...之中',
+  ancient: 'adj. 古代的，古老的',
+  appear: 'v. 出现，显得',
+  apply: 'v. 申请；应用',
+  approach: 'v. 接近；处理；n. 方法，途径',
+  area: 'n. 地区，区域，面积',
+  argue: 'v. 争论，主张',
+  article: 'n. 文章；物品；冠词',
+  assume: 'v. 假定，认为',
+  attend: 'v. 出席，参加；照顾',
+  available: 'adj. 可获得的，有空的',
+  avoid: 'v. 避免',
+  balance: 'n. 平衡；余额；v. 使平衡',
+  base: 'n. 基础，基地；v. 以...为基础',
+  basic: 'adj. 基本的，基础的',
+  bear: 'v. 承受，忍受；n. 熊',
+  beat: 'v. 打败，敲打；n. 节拍',
+  bill: 'n. 账单；法案；钞票',
+  board: 'n. 板；董事会；v. 登上',
+  book: 'n. 书；v. 预订',
+  break: 'v. 打破，休息；n. 休息',
+  build: 'v. 建造，建立',
+  capital: 'n. 首都；资本；adj. 大写的',
+  care: 'v. 关心，在意；n. 照顾',
+  case: 'n. 情况，案例；箱子',
+  cause: 'n. 原因；v. 导致',
+  certain: 'adj. 确定的，某个',
+  challenge: 'n. 挑战；v. 挑战',
+  chance: 'n. 机会，可能性',
+  charge: 'v. 收费，充电，指控；n. 费用',
+  check: 'v. 检查，核对；n. 检查',
+  claim: 'v. 声称，索取；n. 声明，要求',
+  common: 'adj. 常见的，共同的',
+  company: 'n. 公司；陪伴',
+  compare: 'v. 比较',
+  condition: 'n. 条件，状况',
+  consider: 'v. 考虑，认为',
+  contain: 'v. 包含，容纳',
+  continue: 'v. 继续',
+  control: 'v. 控制；n. 控制',
+  cost: 'n. 费用，成本；v. 花费',
+  course: 'n. 课程；过程；路线',
+  cover: 'v. 覆盖，包含；n. 封面',
+  current: 'adj. 当前的；n. 水流，电流',
+  deal: 'v. 处理；n. 交易',
+  decide: 'v. 决定',
+  decline: 'v. 下降；拒绝；n. 下降',
+  develop: 'v. 发展，培养，开发',
+  direct: 'adj. 直接的；v. 指导',
+  discipline: 'n. 纪律；学科',
+  draw: 'v. 画，拉，吸引',
+  due: 'adj. 到期的，应得的；由于',
+  effect: 'n. 影响，效果',
+  effort: 'n. 努力',
+  employ: 'v. 雇用，使用',
+  encourage: 'v. 鼓励',
+  engage: 'v. 参与，从事；吸引',
+  evidence: 'n. 证据',
+  experience: 'n. 经历，经验；v. 经历',
+  fail: 'v. 失败，未能',
+  feature: 'n. 特征，特点；v. 以...为特色',
+  figure: 'n. 数字，人物；v. 认为，计算',
+  firm: 'n. 公司；adj. 坚定的，牢固的',
+  follow: 'v. 跟随，遵循，理解',
+  force: 'n. 力量，武力；v. 强迫',
+  form: 'n. 形式，表格；v. 形成',
+  general: 'adj. 一般的，总体的',
+  ground: 'n. 地面，理由；v. 使停飞',
+  handle: 'v. 处理；n. 把手',
+  hold: 'v. 持有，举行，容纳',
+  improve: 'v. 改善，提高',
+  include: 'v. 包括',
+  increase: 'v. 增加；n. 增加',
+  individual: 'adj. 个人的；n. 个人',
+  industry: 'n. 工业，行业',
+  issue: 'n. 问题，议题；v. 发布',
+  likely: 'adj. 可能的；adv. 可能',
+  major: 'adj. 主要的；n. 专业',
+  manage: 'v. 管理，设法做到',
+  matter: 'n. 事情，问题；v. 要紧',
+  mean: 'v. 意思是，意味着；adj. 吝啬的',
+  measure: 'v. 测量；n. 措施，标准',
+  mind: 'n. 头脑，想法；v. 介意',
+  notice: 'v. 注意到；n. 通知',
+  object: 'n. 物体，目标；v. 反对',
+  offer: 'v. 提供；n. 提议',
+  operate: 'v. 操作，运转，经营',
+  opportunity: 'n. 机会',
+  order: 'n. 顺序，命令，订单；v. 命令，订购',
+  particular: 'adj. 特定的，特别的',
+  perform: 'v. 表演，执行，表现',
+  period: 'n. 时期，阶段，句号',
+  practice: 'n. 练习，实践；v. 练习',
+  present: 'adj. 当前的，在场的；v. 呈现；n. 礼物',
+  process: 'n. 过程；v. 处理',
+  project: 'n. 项目；v. 预测，投射',
+  provide: 'v. 提供',
+  purpose: 'n. 目的，用途',
+  raise: 'v. 提高，筹集，养育',
+  range: 'n. 范围；v. 变化，排列',
+  rate: 'n. 比率，速度；v. 评价',
+  reach: 'v. 到达，达到；n. 范围',
+  realize: 'v. 意识到，实现',
+  reason: 'n. 原因，理由；v. 推理',
+  regard: 'v. 认为，看待；n. 关注，尊重',
+  relate: 'v. 联系，涉及',
+  remain: 'v. 仍然是，留下',
+  require: 'v. 需要，要求',
+  research: 'n. 研究；v. 研究',
+  rest: 'n. 其余，休息；v. 休息',
+  result: 'n. 结果；v. 导致',
+  review: 'v. 复习，审查；n. 评论，审查',
+  rise: 'v. 上升，起立；n. 上升',
+  scale: 'n. 规模，等级；v. 攀登，缩放',
+  serve: 'v. 服务，提供，担任',
+  settle: 'v. 解决，定居',
+  share: 'v. 分享，共有；n. 份额',
+  sign: 'n. 标志，迹象；v. 签名',
+  similar: 'adj. 相似的',
+  simple: 'adj. 简单的',
+  since: 'prep. 自从；conj. 因为',
+  society: 'n. 社会，协会',
+  source: 'n. 来源，出处',
+  state: 'n. 状态，州，国家；v. 陈述',
+  subject: 'n. 主题，科目；adj. 受...影响的',
+  support: 'v. 支持；n. 支持',
+  term: 'n. 术语，学期，期限',
+  treat: 'v. 对待，治疗；n. 款待',
+  value: 'n. 价值；v. 重视',
+  view: 'n. 观点，视野；v. 看待',
+  wonder: 'v. 想知道，感到惊讶；n. 奇迹'
+};
+
+const GOOGLE_POS_MAP = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.', '数词':'num.', '感叹词':'int.', '缩写':'abbr.'};
+
+function attachPhonetic(trans, phonetic) {
+  if (!phonetic || !trans) return trans;
+  return trans.replace(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i, `$1 ${phonetic} `);
+}
+
+function cleanGoogleMeaning(text) {
+  return String(text || '')
+    .replace(/\s+/g, '')
+    .replace(/[;；,，]+$/g, '')
+    .trim();
+}
+
+function buildGoogleDefinition(data) {
+  if (!data?.[1] || !data[1].length) return { text: '', hasDictPos: false };
+
+  const defs = [];
+  for (let i = 0; i < Math.min(data[1].length, 3); i++) {
+    const part = data[1][i];
+    const posEn = GOOGLE_POS_MAP[part[0]] || '';
+    const meanings = Array.isArray(part[1])
+      ? [...new Set(part[1].map(cleanGoogleMeaning).filter(Boolean))].slice(0, 3)
+      : [];
+    if (!meanings.length) continue;
+    defs.push(posEn ? `${posEn} ${meanings.join('，')}` : meanings.join('，'));
+  }
+
+  return { text: defs.join('； '), hasDictPos: true };
+}
+
 // ──── 谷歌双引擎 + 智能多重词性并发 ────
 async function getOnlineDefinition(word) {
   try {
@@ -1105,33 +1289,13 @@ async function getOnlineDefinition(word) {
     
     let trans = ''; 
     let hasDictPos = false;
+    const common = COMMON_TRANSLATIONS[word.toLowerCase()];
+    if (common) return attachPhonetic(common, phonetic);
 
     // 解析词典详细结果：支持并发多词性提取
-    if (data[1] && data[1].length > 0) {
-        hasDictPos = true;
-        let posMap = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.', '数词':'num.', '感叹词':'int.', '缩写':'abbr.'};
-        let allDefs = [];
-        
-        // 最多提取前 3 个核心词性，防止排版过长
-        for (let i = 0; i < Math.min(data[1].length, 3); i++) {
-            let part = data[1][i];
-            let posCn = part[0];
-            let posEn = posMap[posCn] || '';
-            
-            let transList = '';
-            // 每个词性最多提取 4 个释义
-            if (part[1] && Array.isArray(part[1])) {
-                transList = part[1].slice(0, 4).join('，'); 
-            }
-            
-            if (posEn && transList) {
-                allDefs.push(`${posEn} ${transList}`);
-            } else if (transList) {
-                allDefs.push(transList);
-            }
-        }
-        trans = allDefs.join('； ');
-    }
+    const googleDef = buildGoogleDefinition(data);
+    hasDictPos = googleDef.hasDictPos;
+    trans = googleDef.text;
 
     // 如果字典中没有多重释义，启用智能尾缀猜测降级模式
     if (!hasDictPos) {
@@ -1149,7 +1313,7 @@ async function getOnlineDefinition(word) {
     }
     
     if (phonetic && trans) {
-      trans = trans.replace(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i, `$1 ${phonetic} `);
+      trans = attachPhonetic(trans, phonetic);
       if (!trans.includes(phonetic)) trans = `${phonetic} ${trans}`;
     }
     return trans || '解析失败';
