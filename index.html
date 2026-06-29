@@ -611,6 +611,10 @@ tr:hover .del-btn { opacity: 1; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
         过滤常见词汇
       </button>
+      <button class="chip on" id="orderBtn" onclick="toggleOrder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        按输入顺序
+      </button>
       <span class="ocr-msg" id="ocrMsg"></span>
     </div>
 
@@ -695,6 +699,8 @@ tr:hover .del-btn { opacity: 1; }
   if (!wrap || !imgA || !imgB) return;
 
   function resolveAsset(relPath) {
+    if (/^https?:\/\//i.test(relPath) || /^file:\/\//i.test(relPath)) return relPath;
+    if (relPath.startsWith('/')) return 'file://' + relPath;
     const rel = relPath.replace(/^\//, '');
     const path = location.pathname;
     const last = path.split('/').pop() || '';
@@ -703,12 +709,12 @@ tr:hover .del-btn { opacity: 1; }
   }
 
   const WALLPAPERS = [
-    { file: 'assets/bg/garden-roses.png', pos: 'center 72%', filter: 'brightness(0.9) saturate(1.15) contrast(1.03) sepia(0.05)' },
-    { file: 'assets/bg/meadow-hydrangea.png', pos: 'left 68%', filter: 'brightness(0.87) saturate(1.18) contrast(1.05) hue-rotate(-4deg)' },
-    { file: 'assets/bg/hydrangea-pink.png', pos: 'right 55%', filter: 'brightness(0.88) saturate(1.1) contrast(1.04) sepia(0.08)' },
-    { file: 'assets/bg/wildflower-field.png', pos: 'center 60%', filter: 'brightness(0.9) saturate(1.12) contrast(1.02)' },
-    { file: 'assets/bg/blossom-green.png', pos: 'center 65%', filter: 'brightness(0.89) saturate(1.14) contrast(1.04) sepia(0.04)' },
-    { file: 'assets/bg/meadow-pink.png', pos: 'left 70%', filter: 'brightness(0.91) saturate(1.08) contrast(1.03) sepia(0.1)' }
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/garden-roses.png', pos: 'center 72%', filter: 'brightness(0.9) saturate(1.15) contrast(1.03) sepia(0.05)' },
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/meadow-hydrangea.png', pos: 'left 68%', filter: 'brightness(0.87) saturate(1.18) contrast(1.05) hue-rotate(-4deg)' },
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/hydrangea-pink.png', pos: 'right 55%', filter: 'brightness(0.88) saturate(1.1) contrast(1.04) sepia(0.08)' },
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/wildflower-field.png', pos: 'center 60%', filter: 'brightness(0.9) saturate(1.12) contrast(1.02)' },
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/blossom-green.png', pos: 'center 65%', filter: 'brightness(0.89) saturate(1.14) contrast(1.04) sepia(0.04)' },
+    { file: '/Users/terrywzh/Downloads/程序/my-first-web/assets/bg/meadow-pink.png', pos: 'left 70%', filter: 'brightness(0.91) saturate(1.08) contrast(1.03) sepia(0.1)' }
   ].map(w => ({ ...w, src: resolveAsset(w.file) }));
 
   let active = imgA;
@@ -763,10 +769,16 @@ tr:hover .del-btn { opacity: 1; }
 // ──── UTILS ────
 const STOPS = new Set(['a','an','the','and','or','but','if','in','on','at','to','by','of','out','is','are','was','were','be','been','am','have','has','had','do','does','did','will','would','can','could','should','may','not','no','this','that','these','those','i','you','he','she','it','we','they','me','him','her','us','them','my','your','his','its','our','their','what','which','who','when','where','why','how','all','some','such','just','only','very','too','also','there','here','now','then','than','as','for','with','about','up','so','go','get','put']);
 let stopFilter = false;
+let keepInputOrder = true;
 let isTranslating = false;
 
 function countChars() { document.getElementById('charCount').textContent = document.getElementById('rawText').value.length.toLocaleString() + ' 字符'; }
 function toggleStop() { stopFilter = !stopFilter; document.getElementById('stopBtn').classList.toggle('on', stopFilter); }
+function toggleOrder() {
+  keepInputOrder = !keepInputOrder;
+  document.getElementById('orderBtn').classList.toggle('on', keepInputOrder);
+  reorderCurrentTable();
+}
 function show(id) { document.getElementById(id).classList.add('show'); }
 function hide(id) { document.getElementById(id).classList.remove('show'); }
 function setProgress(pct, label, sub) {
@@ -897,9 +909,13 @@ async function doOCR() {
 
 function extractWords(text) {
   const raw = (text.match(/\b[a-zA-Z']{2,}\b/g) || []).map(w => w.toLowerCase().replace(/^'+|'+$/g, ''));
-  let words = [...new Set(raw)].sort();
+  let words = [...new Set(raw)];
   if (stopFilter) words = words.filter(w => !STOPS.has(w));
   return words.filter(w => w.length >= 2 && /[a-z]/.test(w));
+}
+
+function orderWords(words) {
+  return keepInputOrder ? [...words] : [...words].sort();
 }
 
 function normalizePhonetic(text) {
@@ -1349,8 +1365,9 @@ function renderDef(td, text) {
   }
 }
 
-function buildRow(word) {
+function buildRow(word, inputIndex = 0) {
   const tr = document.createElement('tr'); tr.dataset.word = word;
+  tr.dataset.inputIndex = String(inputIndex);
   
   const tdW = document.createElement('td'); tdW.className = 'word-cell'; tdW.textContent = word;
   const tdN = document.createElement('td'); tdN.contentEditable = 'true';
@@ -1380,11 +1397,24 @@ function buildRow(word) {
   tr.append(tdW, tdN, tdD, tdX); return tr;
 }
 
+function reorderCurrentTable() {
+  const tbody = document.getElementById('tbody');
+  if (!tbody || !tbody.children.length) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    if (keepInputOrder) return Number(a.dataset.inputIndex || 0) - Number(b.dataset.inputIndex || 0);
+    return (a.dataset.word || '').localeCompare(b.dataset.word || '');
+  });
+  rows.forEach(row => tbody.appendChild(row));
+}
+
 async function go() {
   const text = document.getElementById('rawText').value.trim();
   if (!text) { toast('请先输入内容', 'err'); return; }
-  const words = extractWords(text);
+  const inputWords = extractWords(text);
+  const words = orderWords(inputWords);
   if (!words.length) { toast('未识别到英文单词', 'err'); return; }
+  const inputIndex = new Map(inputWords.map((w, i) => [w, i]));
 
   const btn = document.getElementById('goBtn'); btn.disabled = true; isTranslating = true;
   btn.innerHTML = `<div class="spinner" style="border-top-color:#fff"></div> 翻译中…`;
@@ -1392,7 +1422,7 @@ async function go() {
   show('progPanel'); hide('resultsPanel'); document.getElementById('filterBar').classList.remove('show');
   
   const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
-  words.forEach(w => tbody.appendChild(buildRow(w)));
+  words.forEach(w => tbody.appendChild(buildRow(w, inputIndex.get(w) || 0)));
   document.getElementById('countLabel').textContent = words.length;
   show('resultsPanel');
 
