@@ -10,7 +10,1668 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
+/* 油画花园背景图 · 液态玻璃 · 英文高对比可读 */<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>词阵 · Word Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
 /* 油画花园背景图 · 液态玻璃 · 英文高对比可读 */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --ink:        #ffffff;
+  --ink-2:      rgba(255,255,255,.88);
+  --ink-3:      rgba(255,255,255,.55);
+  --ink-4:      rgba(255,255,255,.38);
+  --surface:    rgba(255,255,255,.04);
+  --surface-solid: #0c0c0c;
+  --bg:         #000000;
+  --bg-2:       #0a0a0a;
+  --border:     rgba(255,255,255,.1);
+  --border-2:   rgba(255,255,255,.14);
+  --accent:     rgba(255,255,255,.92);
+  --accent-dim: rgba(255,255,255,.12);
+  --blue:       #6eb3ff;
+  --blue-l:     rgba(110,179,255,.12);
+  --blue-ll:    rgba(110,179,255,.06);
+  --green:      #34d399;
+  --red:        #f87171;
+  --amber:      #fbbf24;
+  --text-en:    #ffffff;
+  --r:          12px;
+  --r-lg:       18px;
+  --r-xl:       24px;
+  --glass-bg:   rgba(255,255,255,.03);
+  --glass-blur: blur(14px);
+  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-sans:  'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:  'JetBrains Mono', ui-monospace, monospace;
+}
+
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 0;
+  color: var(--ink-2);
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* 全屏自适应背景图 */
+.bg-photo-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #e8efe4;
+}
+.bg-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  filter: brightness(0.88) saturate(1.12) contrast(1.04) sepia(0.06);
+  transform: scale(1.03);
+  will-change: opacity;
+}
+.bg-photo.active {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bg-photo.active {
+    animation: bgKenBurns 32s ease-in-out infinite alternate;
+  }
+}
+@keyframes bgKenBurns {
+  from { transform: scale(1.03); }
+  to { transform: scale(1.07); }
+}
+.bg-photo-wrap.is-loading .bg-photo.active { opacity: 0.6; }
+.bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.22) 0%, rgba(245,250,246,.12) 35%, rgba(28,38,32,.38) 100%),
+    radial-gradient(ellipse 85% 70% at 50% 40%, rgba(255,255,255,.08), rgba(20,32,26,.22) 72%);
+}
+.bg-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px rgba(40,50,42,.2);
+}
+.bg-regen {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 5;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.5);
+  background: rgba(255,255,255,.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: rgba(42,58,48,.9);
+  font-size: 18px;
+  cursor: pointer;
+  transition: transform .2s, background .2s, box-shadow .2s;
+  line-height: 1;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+}
+.bg-regen:hover {
+  transform: scale(1.06);
+  background: rgba(255,255,255,.55);
+  box-shadow: 0 6px 24px rgba(0,0,0,.18);
+}
+
+.page-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  min-height: 100vh;
+  padding: 56px 24px 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.header,
+.card { position: relative; }
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+  animation: fadeRise .8s ease-out both;
+}
+
+.wordmark { display: inline-flex; gap: 4px; margin-bottom: 22px; }
+.wm-block {
+  width: 10px;
+  border-radius: 3px;
+  background: rgba(52,72,58,.75);
+  animation: wm-in .5s ease both;
+}
+.wm-block:nth-child(1) { height: 28px; }
+.wm-block:nth-child(2) { height: 20px; margin-top: 5px; animation-delay: .08s; background: rgba(90,120,98,.55); }
+.wm-block:nth-child(3) { height: 24px; margin-top: 3px; animation-delay: .16s; }
+.wm-block:nth-child(4) { height: 16px; margin-top: 7px; animation-delay: .24s; background: rgba(90,120,98,.45); }
+.wm-block:nth-child(5) { height: 28px; animation-delay: .32s; }
+
+.app-title {
+  font-family: var(--font-serif);
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 400;
+  color: #2a3d32;
+  letter-spacing: -.02em;
+  line-height: 0.95;
+  text-shadow: 0 2px 24px rgba(255,255,255,.85), 0 1px 2px rgba(255,255,255,.6);
+  animation: fadeRise .8s ease-out .15s both;
+}
+.app-title span { font-style: italic; color: #3d5a48; }
+.app-sub {
+  margin-top: 12px;
+  font-size: 13px;
+  color: rgba(42,58,48,.72);
+  font-weight: 400;
+  letter-spacing: .04em;
+  text-shadow: 0 1px 12px rgba(255,255,255,.75);
+  animation: fadeRise .8s ease-out .3s both;
+}
+
+.card {
+  width: 100%;
+  max-width: 940px;
+  background: rgba(18,28,22,.42);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  border-radius: var(--r-xl);
+  border: 1px solid rgba(255,255,255,.2);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.15),
+    0 24px 64px rgba(20,30,24,.35);
+  overflow: hidden;
+  animation: fadeRise .8s ease-out .2s both;
+}
+
+.input-panel { padding: 32px 36px; }
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 16px;
+}
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-2);
+  background: rgba(255,255,255,.04);
+  color: var(--ink-2);
+  transition: transform .2s ease, border-color .2s, background .2s;
+  white-space: nowrap;
+}
+.chip:hover { transform: scale(1.02); border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.07); color: var(--ink); }
+.chip.on { border-color: rgba(255,255,255,.35); color: var(--ink); background: rgba(255,255,255,.1); }
+.chip svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .9; }
+.ocr-msg { font-size: 13px; font-weight: 500; color: var(--ink-3); }
+
+.textarea-wrap { position: relative; }
+textarea {
+  width: 100%;
+  min-height: 168px;
+  padding: 18px 18px 40px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.75;
+  letter-spacing: .01em;
+  resize: vertical;
+  outline: none;
+  background: rgba(0,0,0,.45);
+  color: var(--text-en);
+  font-family: var(--font-sans);
+  transition: border-color .2s, box-shadow .2s;
+  text-rendering: optimizeLegibility;
+}
+textarea:focus {
+  border-color: rgba(255,255,255,.35);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.12), inset 0 0 0 1px rgba(255,255,255,.05);
+  background: rgba(0,0,0,.55);
+}
+textarea::placeholder { color: var(--ink-4); font-weight: 400; }
+.char-count {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  font-size: 11px;
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  pointer-events: none;
+}
+
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+.liquid-glass {
+  position: relative;
+  background: rgba(255,255,255,.01);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.1);
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(135deg, rgba(255,255,255,.35), rgba(255,255,255,.05) 50%, rgba(255,255,255,.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 26px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  background: rgba(255,255,255,.06);
+  color: var(--ink);
+  border: none;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s;
+  position: relative;
+  isolation: isolate;
+}
+.btn-primary > * { position: relative; z-index: 1; }
+.btn-primary:hover:not(:disabled) {
+  transform: scale(1.03);
+  background: rgba(255,255,255,.14);
+  border-color: rgba(255,255,255,.28);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.18), 0 8px 32px rgba(0,0,0,.4);
+}
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.btn-primary svg { width: 16px; height: 16px; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px solid var(--border-2);
+  cursor: pointer;
+  transition: transform .2s, color .2s, border-color .2s, background .2s;
+}
+.btn-ghost:hover { color: var(--ink); border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.05); transform: scale(1.02); }
+.btn-ghost.sm { padding: 8px 16px; font-size: 12px; }
+.btn-ghost svg { width: 14px; height: 14px; }
+
+.progress-panel {
+  padding: 20px 36px;
+  background: rgba(0,0,0,.25);
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.progress-panel.show { display: block; }
+.prog-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.prog-label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.prog-pct { font-size: 13px; font-weight: 600; color: var(--ink); font-family: var(--font-mono); }
+.prog-track { height: 3px; background: rgba(255,255,255,.1); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, rgba(255,255,255,.5), rgba(255,255,255,.9)); border-radius: 2px; transition: width .35s; width: 0%; }
+.prog-sub { margin-top: 6px; font-size: 12px; color: var(--ink-4); }
+
+.results-panel { display: none; }
+.results-panel.show { display: block; }
+.results-header {
+  padding: 18px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  background: rgba(0,0,0,.2);
+}
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.stat-badge b { color: var(--ink); font-weight: 600; font-family: var(--font-mono); }
+.export-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.table-wrap { padding: 0 36px 36px; overflow-x: auto; }
+.table-scroll {
+  max-height: 560px;
+  overflow-y: auto;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-lg);
+  background: rgba(0,0,0,.62);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+.table-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 4px; }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 13px 16px;
+  background: #111111;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  vertical-align: middle;
+  font-size: 14px;
+  color: var(--ink-2);
+  word-wrap: break-word;
+  line-height: 1.55;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background .12s; }
+tbody tr:hover td { background: rgba(255,255,255,.04); }
+
+th:nth-child(1), td:nth-child(1) { width: 22%; }
+th:nth-child(2), td:nth-child(2) { width: 30%; }
+th:nth-child(3), td:nth-child(3) { width: 42%; }
+th:nth-child(4), td:nth-child(4) { width: 6%; text-align: center; }
+
+.word-cell {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-en);
+  letter-spacing: .03em;
+  text-rendering: optimizeLegibility;
+}
+
+tbody td[contenteditable="true"] {
+  outline: none;
+  cursor: text;
+  transition: background .12s, box-shadow .12s;
+}
+tbody td[contenteditable="true"]:focus {
+  background: rgba(255,255,255,.06);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+  border-radius: 4px;
+  color: var(--text-en);
+}
+
+.pos-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+  font-family: var(--font-mono);
+  letter-spacing: .04em;
+}
+.pos-n    { background: rgba(110,179,255,.2); color: #93c5fd; }
+.pos-v    { background: rgba(52,211,153,.18); color: #6ee7b7; }
+.pos-adj  { background: rgba(248,113,113,.18); color: #fca5a5; }
+.pos-adv  { background: rgba(251,191,36,.18); color: #fcd34d; }
+.pos-pron { background: rgba(192,132,252,.18); color: #d8b4fe; }
+.pos-prep { background: rgba(74,222,128,.15); color: #86efac; }
+.pos-conj { background: rgba(251,146,60,.18); color: #fdba74; }
+.pos-num  { background: rgba(6,182,212,.15); color: #67e8f9; }
+.pos-int  { background: rgba(225,29,72,.15); color: #fda4af; }
+.pos-abbr { background: rgba(255,255,255,.1); color: #cbd5e1; }
+.pos-other{ background: rgba(255,255,255,.1); color: rgba(255,255,255,.65); }
+
+.phonetic {
+  display: inline-block;
+  margin-right: 8px;
+  color: rgba(255,255,255,.72);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.def-loading { display: flex; align-items: center; gap: 8px; color: var(--ink-4); font-size: 13px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,.15);
+  border-top-color: rgba(255,255,255,.75);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.del-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink-4);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all .12s;
+  font-weight: bold;
+}
+tr:hover .del-btn { opacity: 1; }
+.del-btn:hover { color: var(--red); background: rgba(248,113,113,.15); }
+
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  padding: 12px 20px;
+  border-radius: var(--r);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(20,20,20,.92);
+  border: 1px solid var(--border-2);
+  backdrop-filter: blur(12px);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all .25s ease;
+  pointer-events: none;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.toast.active { opacity: 1; transform: translateY(0); }
+.toast.ok  { background: rgba(6,78,59,.92); border-color: rgba(52,211,153,.3); }
+.toast.err { background: rgba(127,29,29,.92); border-color: rgba(248,113,113,.3); }
+
+@keyframes fadeRise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes wm-in {
+  from { opacity: 0; transform: scaleY(0); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+.filter-bar {
+  padding: 14px 36px;
+  border-top: 1px solid var(--border);
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filter-bar.show { display: flex; }
+.filter-input {
+  flex: 1;
+  max-width: 280px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  font-size: 13px;
+  outline: none;
+  background: rgba(0,0,0,.4);
+  color: var(--ink-2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.filter-input:focus {
+  border-color: rgba(255,255,255,.3);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.1);
+  color: var(--ink);
+}
+.filter-count { font-size: 12px; color: var(--ink-4); white-space: nowrap; }
+
+/* PDF 离屏容器 */
+#pdf-export-root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: -9999;
+  pointer-events: none;
+  overflow: visible;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-regen { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-photo-wrap" id="bgPhotoWrap" aria-hidden="true">
+  <img class="bg-photo" id="bgPhotoA" alt="" decoding="async">
+  <img class="bg-photo" id="bgPhotoB" alt="" decoding="async">
+  <div class="bg-overlay"></div>
+  <div class="bg-vignette"></div>
+</div>
+<button type="button" class="bg-regen" id="bgRegenBtn" title="随机换一张背景画" aria-label="随机换背景">↻</button>
+
+<main class="page-content">
+
+<div class="header">
+  <div class="wordmark">
+    <div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div><div class="wm-block"></div>
+  </div>
+  <h1 class="app-title">Word <span>Matrix</span></h1>
+  <p class="app-sub">纯净排版 · PDF内存渲染引擎</p>
+</div>
+
+<div class="card">
+  <div class="input-panel">
+    <div class="section-label">输入区域</div>
+    <div class="toolbar">
+      <input type="file" id="imgFile" accept="image/*" multiple style="display:none" onchange="doOCR()">
+      <button class="chip" onclick="document.getElementById('imgFile').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        智能扫描图片
+      </button>
+      <button class="chip" id="stopBtn" onclick="toggleStop()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg>
+        过滤常见词汇
+      </button>
+      <button class="chip on" id="orderBtn" onclick="toggleOrder()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        按输入顺序
+      </button>
+      <span class="ocr-msg" id="ocrMsg"></span>
+    </div>
+
+    <div class="textarea-wrap">
+      <textarea id="rawText" placeholder="粘贴英语原文，或点击上方批量上传截图..." oninput="countChars()"></textarea>
+      <span class="char-count" id="charCount">0 字符</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary liquid-glass" id="goBtn" onclick="go()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        智能提取并翻译
+      </button>
+      <button class="btn-ghost" onclick="clearAll()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        清空重置
+      </button>
+    </div>
+  </div>
+
+  <div class="progress-panel" id="progPanel">
+    <div class="prog-row">
+      <span class="prog-label" id="progLabel">正在处理…</span>
+      <span class="prog-pct" id="progPct">0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-sub" id="progSub"></div>
+  </div>
+
+  <div class="results-panel" id="resultsPanel">
+    <div class="results-header">
+      <div class="stat-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        共 <b id="countLabel">0</b> 个单词
+      </div>
+      <div class="export-row">
+        <button class="btn-ghost sm" onclick="exportCSV()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          导出 CSV
+        </button>
+        <button class="btn-ghost sm" id="pdfBtn" onclick="exportPDF(this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          导出 PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-bar" id="filterBar">
+      <input class="filter-input" id="filterInput" type="text" placeholder="🔍 搜索单词或释义…" oninput="filterTable()">
+      <span class="filter-count" id="filterCount"></span>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="wordTable">
+          <thead>
+            <tr>
+              <th>单词 WORD</th>
+              <th>笔记 NOTES (双击编辑)</th>
+              <th>释义 MEANING</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* 自适应油画背景图 */
+(function initPhotoBg() {
+  const wrap = document.getElementById('bgPhotoWrap');
+  const imgA = document.getElementById('bgPhotoA');
+  const imgB = document.getElementById('bgPhotoB');
+  const regenBtn = document.getElementById('bgRegenBtn');
+  if (!wrap || !imgA || !imgB) return;
+
+  function resolveAsset(relPath) {
+    if (/^https?:\/\//i.test(relPath) || /^file:\/\//i.test(relPath)) return relPath;
+    const rel = relPath.replace(/^\//, '');
+    const path = location.pathname;
+    const last = path.split('/').pop() || '';
+    const base = last.includes('.') ? path.slice(0, path.length - last.length) : (path.endsWith('/') ? path : path + '/');
+    return location.origin + base + rel;
+  }
+
+  const WALLPAPERS = [
+    { file: 'assets/bg/garden-roses.png', pos: 'center 72%', filter: 'brightness(0.9) saturate(1.15) contrast(1.03) sepia(0.05)' },
+    { file: 'assets/bg/meadow-hydrangea.png', pos: 'left 68%', filter: 'brightness(0.87) saturate(1.18) contrast(1.05) hue-rotate(-4deg)' },
+    { file: 'assets/bg/hydrangea-pink.png', pos: 'right 55%', filter: 'brightness(0.88) saturate(1.1) contrast(1.04) sepia(0.08)' },
+    { file: 'assets/bg/wildflower-field.png', pos: 'center 60%', filter: 'brightness(0.9) saturate(1.12) contrast(1.02)' },
+    { file: 'assets/bg/blossom-green.png', pos: 'center 65%', filter: 'brightness(0.89) saturate(1.14) contrast(1.04) sepia(0.04)' },
+    { file: 'assets/bg/meadow-pink.png', pos: 'left 70%', filter: 'brightness(0.91) saturate(1.08) contrast(1.03) sepia(0.1)' }
+  ].map(w => ({ ...w, src: resolveAsset(w.file) }));
+
+  let active = imgA;
+  let idle = imgB;
+  let current = -1;
+
+  function pickNext() {
+    let idx;
+    do { idx = Math.floor(Math.random() * WALLPAPERS.length); } while (WALLPAPERS.length > 1 && idx === current);
+    return idx;
+  }
+
+  function applyWallpaper(img, item) {
+    img.src = item.src;
+    img.style.objectPosition = item.pos;
+    img.style.filter = item.filter;
+  }
+
+  function show(idx) {
+    const item = WALLPAPERS[idx];
+    current = idx;
+    wrap.classList.add('is-loading');
+    applyWallpaper(idle, item);
+
+    const onReady = () => {
+      idle.removeEventListener('load', onReady);
+      idle.removeEventListener('error', onErr);
+      active.classList.remove('active');
+      idle.classList.add('active');
+      const tmp = active; active = idle; idle = tmp;
+      wrap.classList.remove('is-loading');
+    };
+    const onErr = () => {
+      idle.removeEventListener('load', onReady);
+      idle.removeEventListener('error', onErr);
+      wrap.classList.remove('is-loading');
+      console.warn('[Word Matrix] 背景图加载失败:', idle.src);
+    };
+
+    if (idle.complete && idle.naturalWidth > 0) onReady();
+    else {
+      idle.addEventListener('load', onReady);
+      idle.addEventListener('error', onErr);
+    }
+  }
+
+  show(pickNext());
+  if (regenBtn) regenBtn.addEventListener('click', () => show(pickNext()));
+})();
+</script>
+<script>
+// ──── UTILS ────
+const STOPS = new Set(['a','an','the','and','or','but','if','in','on','at','to','by','of','out','is','are','was','were','be','been','am','have','has','had','do','does','did','will','would','can','could','should','may','not','no','this','that','these','those','i','you','he','she','it','we','they','me','him','her','us','them','my','your','his','its','our','their','what','which','who','when','where','why','how','all','some','such','just','only','very','too','also','there','here','now','then','than','as','for','with','about','up','so','go','get','put']);
+let stopFilter = false;
+let keepInputOrder = true;
+let isTranslating = false;
+
+function countChars() { document.getElementById('charCount').textContent = document.getElementById('rawText').value.length.toLocaleString() + ' 字符'; }
+function toggleStop() { stopFilter = !stopFilter; document.getElementById('stopBtn').classList.toggle('on', stopFilter); }
+function toggleOrder() {
+  keepInputOrder = !keepInputOrder;
+  document.getElementById('orderBtn').classList.toggle('on', keepInputOrder);
+  reorderCurrentTable();
+}
+function show(id) { document.getElementById(id).classList.add('show'); }
+function hide(id) { document.getElementById(id).classList.remove('show'); }
+function setProgress(pct, label, sub) {
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progPct').textContent = Math.round(pct) + '%';
+  if (label !== undefined) document.getElementById('progLabel').textContent = label;
+  if (sub !== undefined) document.getElementById('progSub').textContent = sub;
+}
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast active ' + (type || '');
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+function clearAll() {
+  if(isTranslating) { toast('请等待翻译完成', 'err'); return; }
+  document.getElementById('rawText').value = '';
+  document.getElementById('ocrMsg').textContent = '';
+  document.getElementById('filterInput').value = '';
+  countChars(); hide('progPanel'); hide('resultsPanel');
+  document.getElementById('filterBar').classList.remove('show');
+}
+
+// ──── 多图 OCR：图片增强 + 英文词汇识别优化 ────
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image load failed'));
+    };
+    img.src = url;
+  });
+}
+
+function clampByte(v) {
+  return Math.max(0, Math.min(255, v));
+}
+
+async function preprocessOCRImage(file) {
+  const img = await loadImageFile(file);
+  const maxSide = 2600;
+  const longSide = Math.max(img.width, img.height);
+  const scale = longSide > maxSide ? maxSide / longSide : Math.min(3, Math.max(1, 1600 / longSide));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const image = ctx.getImageData(0, 0, w, h);
+  const data = image.data;
+  const gray = new Uint8ClampedArray(w * h);
+  let sum = 0;
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    gray[p] = g;
+    sum += g;
+  }
+
+  const avg = sum / gray.length;
+  const threshold = Math.max(115, Math.min(185, avg * 0.92));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      const center = gray[p];
+      const left = gray[p - 1] ?? center;
+      const right = gray[p + 1] ?? center;
+      const up = gray[p - w] ?? center;
+      const down = gray[p + w] ?? center;
+      const sharp = clampByte(center * 1.85 - (left + right + up + down) * 0.2125);
+      const contrast = clampByte((sharp - 128) * 1.55 + 128);
+      const v = contrast < threshold ? 0 : 255;
+      const i = p * 4;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return new Promise(resolve => canvas.toBlob(blob => resolve(blob || file), 'image/png'));
+}
+
+async function doOCR() {
+  const files = document.getElementById('imgFile').files;
+  if (!files.length) return;
+  const msg = document.getElementById('ocrMsg');
+  msg.style.color = 'var(--amber)'; msg.textContent = `⏳ 准备识别 ${files.length} 张图片…`;
+  
+  let combined = document.getElementById('rawText').value;
+  if (combined) combined += '\n\n';
+  try {
+    for (let i = 0; i < files.length; i++) {
+      msg.textContent = `⏳ 增强图片 ${i+1}/${files.length}…`;
+      const enhanced = await preprocessOCRImage(files[i]);
+      msg.textContent = `⏳ 精准扫描 ${i+1}/${files.length}…`;
+      const { data } = await Tesseract.recognize(enhanced, 'eng', {
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' -",
+        preserve_interword_spaces: '1',
+        tessedit_pageseg_mode: '6',
+        logger: m => {
+          if (m.status === 'recognizing text' && Number.isFinite(m.progress)) {
+            msg.textContent = `⏳ 精准扫描 ${i+1}/${files.length} · ${Math.round(m.progress * 100)}%`;
+          }
+        }
+      });
+      combined += data.text.trim() + '\n';
+      document.getElementById('rawText').value = combined;
+      countChars();
+    }
+    msg.style.color = 'var(--green)'; msg.textContent = `✓ ${files.length} 张图片增强识别完成`;
+  } catch(e) { msg.style.color = 'var(--red)'; msg.textContent = '✗ 识别失败，请检查图片清晰度'; }
+  document.getElementById('imgFile').value = '';
+}
+
+function extractWords(text) {
+  const raw = (text.match(/\b[a-zA-Z']{2,}\b/g) || []).map(w => w.toLowerCase().replace(/^'+|'+$/g, ''));
+  let words = [...new Set(raw)];
+  if (stopFilter) words = words.filter(w => !STOPS.has(w));
+  return words.filter(w => w.length >= 2 && /[a-z]/.test(w));
+}
+
+function orderWords(words) {
+  return keepInputOrder ? [...words] : [...words].sort();
+}
+
+function normalizePhonetic(text) {
+  let t = String(text || '').trim();
+  if (!t) return '';
+  t = t.replace(/^IPA\s*:?/i, '').trim();
+  // 已规范格式 /.../ 或 [...]，验证内部非空
+  if ((t.startsWith('/') && t.endsWith('/')) || (t.startsWith('[') && t.endsWith(']'))) {
+    return t.slice(1, -1).trim() ? t : '';
+  }
+  // 【升级】完整 IPA 字符集，覆盖全部 Unicode IPA 区间：
+  // a-z/A-Z        基本拉丁（IPA 借用）
+  // \u00E6 æ       前低元音
+  // \u00F0 ð       浊齿摩擦音
+  // \u00F8 ø       圆唇前元音
+  // \u014B ŋ       软腭鼻音（Latin Extended-A，旧正则遗漏）
+  // \u0153 œ       圆唇半开前元音
+  // \u03B8 θ       清齿摩擦音（Greek block，旧正则遗漏）
+  // \u0250-\u02AF  IPA 扩展区（完整 80 个 IPA 专用字符，含 ɹɾʔʤʧɫ 等全部旧正则遗漏字符）
+  // \u02B0-\u02FF  间距修饰字母（ˈˌːˑ 等声调/长音标记）
+  // \u0300-\u036F  组合变音符（鼻化 ̃、超短 ̆ 等）
+  // \u1D00-\u1DBF  语音学扩展（小型大写字母等）
+  const IPA_PAT = /^[a-zA-Z\s.\-,'\u00E6\u00F0\u00F8\u014B\u0153\u03B8\u0250-\u02FF\u0300-\u036F\u1D00-\u1DBF]+$/;
+  if (IPA_PAT.test(t) && t.length >= 1) return `/${t}/`;
+  return '';
+}
+
+function getPhoneticCandidates(word) {
+  const w = String(word || '').toLowerCase().replace(/[^a-z'-]/g, '');
+  const list = [w];
+  const add = v => {
+    if (v && v.length > 1 && !list.includes(v)) list.push(v);
+  };
+
+  if (w.endsWith("'s")) add(w.slice(0, -2));
+  if (w.endsWith("s'")) add(w.slice(0, -2));
+  if (w.endsWith('ies') && w.length > 4) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('ves') && w.length > 4) {
+    add(w.slice(0, -3) + 'f');
+    add(w.slice(0, -3) + 'fe');
+  }
+  if (w.endsWith('es') && w.length > 3) add(w.slice(0, -2));
+  if (w.endsWith('s') && w.length > 3) add(w.slice(0, -1));
+  if (w.endsWith('ied') && w.length > 4) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('ed') && w.length > 4) {
+    add(w.slice(0, -2));
+    add(w.slice(0, -1));
+  }
+  if (w.endsWith('ing') && w.length > 5) {
+    const stem = w.slice(0, -3);
+    add(stem);
+    add(stem + 'e');
+    if (/([b-df-hj-np-tv-z])\1$/i.test(stem)) add(stem.slice(0, -1));
+  }
+  if (w.endsWith('er') && w.length > 4) {
+    add(w.slice(0, -2));
+    add(w.slice(0, -1));
+  }
+  if (w.endsWith('est') && w.length > 5) {
+    add(w.slice(0, -3));
+    add(w.slice(0, -2));
+  }
+  return list;
+}
+
+function pickPhoneticFromDictionaryEntry(entry) {
+  // 1. 直接 phonetic 字段
+  const direct = normalizePhonetic(entry?.phonetic);
+  if (direct) return direct;
+
+  const phonetics = Array.isArray(entry?.phonetics) ? entry.phonetics : [];
+
+  // 2. 有音频的优先：美式发音 > 其他带音频
+  const usPhone = phonetics.find(p => p.audio && /us|american/i.test(p.audio) && normalizePhonetic(p.text));
+  if (usPhone) return normalizePhonetic(usPhone.text);
+
+  const withAudio = phonetics.find(p => p.audio && normalizePhonetic(p.text));
+  if (withAudio) return normalizePhonetic(withAudio.text);
+
+  // 3. 无音频但有文本的
+  for (const p of phonetics) {
+    const phone = normalizePhonetic(p.text);
+    if (phone) return phone;
+  }
+
+  return '';
+}
+
+function pickPhoneticFromGoogleData(data) {
+  const seen = new Set();
+  const stack = [data];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || seen.has(item)) continue;
+    if (typeof item === 'object') seen.add(item);
+    if (typeof item === 'string') {
+      const phone = normalizePhonetic(item);
+      // 【升级】改用 Unicode 范围验证 IPA 特征字符，覆盖旧版遗漏的所有 IPA 符号
+      // U+0250-U+02FF: IPA 扩展区 + 间距修饰字母
+      // 同时保留 æ/ð/ø/ŋ/θ 等非扩展区常用 IPA 字母
+      if (phone && /[\u0250-\u02FF\u00E6\u00F0\u00F8\u014B\u0153\u03B8]/.test(phone)) return phone;
+      continue;
+    }
+    if (Array.isArray(item)) stack.push(...item);
+    else if (typeof item === 'object') stack.push(...Object.values(item));
+  }
+  return '';
+}
+
+async function fetchJSONWithTimeout(url, timeout = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ──── 【新增】Wiktionary 音标备用源（DictionaryAPI 查不到时自动触发）────
+async function fetchWiktionaryPhonetic(word) {
+  try {
+    const url = `https://en.wiktionary.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&titles=${encodeURIComponent(word)}&origin=*`;
+    const data = await fetchJSONWithTimeout(url, 5000);
+    if (!data?.query?.pages) return '';
+    const pages = Object.values(data.query.pages);
+    if (!pages.length || 'missing' in (pages[0] || {})) return '';
+    const content = pages[0]?.revisions?.[0]?.slots?.main?.['*'] ||
+                    pages[0]?.revisions?.[0]?.['*'] || '';
+    if (!content) return '';
+    // 匹配 {{IPA|en|/phonetic/}} 或 {{IPA|en|[phonetic]}}
+    const m = content.match(/\{\{(?:IPA|ipa)\|en\|([/\[][^|}]{1,80}[/\]])/);
+    if (m) {
+      const raw = m[1].split('|')[0].trim();
+      const phone = normalizePhonetic(raw);
+      if (phone) return phone;
+    }
+    return '';
+  } catch (_) {
+    return '';
+  }
+}
+
+// ──── 【新增】音标内存缓存（同次会话内不重复请求）────
+const _phoneticCache = new Map();
+
+async function getDictionaryPhonetic(word) {
+  try {
+    const data = await fetchJSONWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    const entries = Array.isArray(data) ? data : [];
+    for (const entry of entries) {
+      const phone = pickPhoneticFromDictionaryEntry(entry);
+      if (phone) return phone;
+    }
+    return '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function getBestDictionaryPhonetic(word) {
+  const cacheKey = word.toLowerCase();
+  if (_phoneticCache.has(cacheKey)) return _phoneticCache.get(cacheKey);
+
+  const candidates = getPhoneticCandidates(word);
+  const primary = candidates[0];
+
+  // 【升级】主词形：DictionaryAPI + Wiktionary 并发查询，取最快成功的
+  const [dictPhone, wikiPhone] = await Promise.all([
+    getDictionaryPhonetic(primary),
+    fetchWiktionaryPhonetic(primary)
+  ]);
+  const primaryResult = dictPhone || wikiPhone;
+  if (primaryResult) { _phoneticCache.set(cacheKey, primaryResult); return primaryResult; }
+
+  // 变体词形：逐一尝试 DictionaryAPI
+  for (const item of candidates.slice(1)) {
+    const phone = await getDictionaryPhonetic(item);
+    if (phone) { _phoneticCache.set(cacheKey, phone); return phone; }
+  }
+
+  // 终极降级：变体词形尝试 Wiktionary（最多查前 2 个变体）
+  for (const item of candidates.slice(1, 3)) {
+    const phone = await fetchWiktionaryPhonetic(item);
+    if (phone) { _phoneticCache.set(cacheKey, phone); return phone; }
+  }
+
+  _phoneticCache.set(cacheKey, '');
+  return '';
+}
+
+// 常见多义词优先使用更符合学习场景的释义，避免在线翻译把孤立单词带到冷门义项。
+const COMMON_TRANSLATIONS = {
+  ability: 'n. 能力，本领',
+  able: 'adj. 能够的，有能力的',
+  abroad: 'adv. 在国外，到国外',
+  accept: 'v. 接受，同意',
+  accident: 'n. 事故，意外',
+  account: 'n. 账户；描述，说明；v. 解释',
+  achieve: 'v. 实现，达到',
+  across: 'prep. 穿过，横过；adv. 在对面',
+  act: 'v. 行动，表现；n. 行为，法案',
+  actually: 'adv. 实际上，事实上',
+  address: 'n. 地址；演讲；v. 处理，向...讲话',
+  affect: 'v. 影响',
+  afford: 'v. 买得起，承担得起',
+  agree: 'v. 同意，赞成',
+  allow: 'v. 允许，使可能',
+  almost: 'adv. 几乎，差不多',
+  alone: 'adj. 单独的；adv. 独自',
+  although: 'conj. 虽然，尽管',
+  among: 'prep. 在...之中',
+  ancient: 'adj. 古代的，古老的',
+  appear: 'v. 出现，显得',
+  apply: 'v. 申请；应用',
+  approach: 'v. 接近；处理；n. 方法，途径',
+  area: 'n. 地区，区域，面积',
+  argue: 'v. 争论，主张',
+  article: 'n. 文章；物品；冠词',
+  assume: 'v. 假定，认为',
+  attend: 'v. 出席，参加；照顾',
+  available: 'adj. 可获得的，有空的',
+  avoid: 'v. 避免',
+  balance: 'n. 平衡；余额；v. 使平衡',
+  base: 'n. 基础，基地；v. 以...为基础',
+  basic: 'adj. 基本的，基础的',
+  bear: 'v. 承受，忍受；n. 熊',
+  beat: 'v. 打败，敲打；n. 节拍',
+  bill: 'n. 账单；法案；钞票',
+  board: 'n. 板；董事会；v. 登上',
+  book: 'n. 书；v. 预订',
+  break: 'v. 打破，休息；n. 休息',
+  build: 'v. 建造，建立',
+  capital: 'n. 首都；资本；adj. 大写的',
+  care: 'v. 关心，在意；n. 照顾',
+  case: 'n. 情况，案例；箱子',
+  cause: 'n. 原因；v. 导致',
+  certain: 'adj. 确定的，某个',
+  challenge: 'n. 挑战；v. 挑战',
+  chance: 'n. 机会，可能性',
+  charge: 'v. 收费，充电，指控；n. 费用',
+  check: 'v. 检查，核对；n. 检查',
+  claim: 'v. 声称，索取；n. 声明，要求',
+  common: 'adj. 常见的，共同的',
+  company: 'n. 公司；陪伴',
+  compare: 'v. 比较',
+  condition: 'n. 条件，状况',
+  consider: 'v. 考虑，认为',
+  contain: 'v. 包含，容纳',
+  continue: 'v. 继续',
+  control: 'v. 控制；n. 控制',
+  cost: 'n. 费用，成本；v. 花费',
+  course: 'n. 课程；过程；路线',
+  cover: 'v. 覆盖，包含；n. 封面',
+  current: 'adj. 当前的；n. 水流，电流',
+  deal: 'v. 处理；n. 交易',
+  decide: 'v. 决定',
+  decline: 'v. 下降；拒绝；n. 下降',
+  develop: 'v. 发展，培养，开发',
+  direct: 'adj. 直接的；v. 指导',
+  discipline: 'n. 纪律；学科',
+  draw: 'v. 画，拉，吸引',
+  due: 'adj. 到期的，应得的；由于',
+  effect: 'n. 影响，效果',
+  effort: 'n. 努力',
+  employ: 'v. 雇用，使用',
+  encourage: 'v. 鼓励',
+  engage: 'v. 参与，从事；吸引',
+  evidence: 'n. 证据',
+  experience: 'n. 经历，经验；v. 经历',
+  fail: 'v. 失败，未能',
+  feature: 'n. 特征，特点；v. 以...为特色',
+  figure: 'n. 数字，人物；v. 认为，计算',
+  firm: 'n. 公司；adj. 坚定的，牢固的',
+  follow: 'v. 跟随，遵循，理解',
+  force: 'n. 力量，武力；v. 强迫',
+  form: 'n. 形式，表格；v. 形成',
+  general: 'adj. 一般的，总体的',
+  ground: 'n. 地面，理由；v. 使停飞',
+  handle: 'v. 处理；n. 把手',
+  hold: 'v. 持有，举行，容纳',
+  improve: 'v. 改善，提高',
+  include: 'v. 包括',
+  increase: 'v. 增加；n. 增加',
+  individual: 'adj. 个人的；n. 个人',
+  industry: 'n. 工业，行业',
+  issue: 'n. 问题，议题；v. 发布',
+  likely: 'adj. 可能的；adv. 可能',
+  major: 'adj. 主要的；n. 专业',
+  manage: 'v. 管理，设法做到',
+  matter: 'n. 事情，问题；v. 要紧',
+  mean: 'v. 意思是，意味着；adj. 吝啬的',
+  measure: 'v. 测量；n. 措施，标准',
+  mind: 'n. 头脑，想法；v. 介意',
+  notice: 'v. 注意到；n. 通知',
+  object: 'n. 物体，目标；v. 反对',
+  offer: 'v. 提供；n. 提议',
+  operate: 'v. 操作，运转，经营',
+  opportunity: 'n. 机会',
+  order: 'n. 顺序，命令，订单；v. 命令，订购',
+  particular: 'adj. 特定的，特别的',
+  perform: 'v. 表演，执行，表现',
+  period: 'n. 时期，阶段，句号',
+  practice: 'n. 练习，实践；v. 练习',
+  present: 'adj. 当前的，在场的；v. 呈现；n. 礼物',
+  process: 'n. 过程；v. 处理',
+  project: 'n. 项目；v. 预测，投射',
+  provide: 'v. 提供',
+  purpose: 'n. 目的，用途',
+  raise: 'v. 提高，筹集，养育',
+  range: 'n. 范围；v. 变化，排列',
+  rate: 'n. 比率，速度；v. 评价',
+  reach: 'v. 到达，达到；n. 范围',
+  realize: 'v. 意识到，实现',
+  reason: 'n. 原因，理由；v. 推理',
+  regard: 'v. 认为，看待；n. 关注，尊重',
+  relate: 'v. 联系，涉及',
+  remain: 'v. 仍然是，留下',
+  require: 'v. 需要，要求',
+  research: 'n. 研究；v. 研究',
+  rest: 'n. 其余，休息；v. 休息',
+  result: 'n. 结果；v. 导致',
+  review: 'v. 复习，审查；n. 评论，审查',
+  rise: 'v. 上升，起立；n. 上升',
+  scale: 'n. 规模，等级；v. 攀登，缩放',
+  serve: 'v. 服务，提供，担任',
+  settle: 'v. 解决，定居',
+  share: 'v. 分享，共有；n. 份额',
+  sign: 'n. 标志，迹象；v. 签名',
+  similar: 'adj. 相似的',
+  simple: 'adj. 简单的',
+  since: 'prep. 自从；conj. 因为',
+  society: 'n. 社会，协会',
+  source: 'n. 来源，出处',
+  state: 'n. 状态，州，国家；v. 陈述',
+  subject: 'n. 主题，科目；adj. 受...影响的',
+  support: 'v. 支持；n. 支持',
+  term: 'n. 术语，学期，期限',
+  treat: 'v. 对待，治疗；n. 款待',
+  value: 'n. 价值；v. 重视',
+  view: 'n. 观点，视野；v. 看待',
+  wonder: 'v. 想知道，感到惊讶；n. 奇迹'
+};
+
+const GOOGLE_POS_MAP = {'名词':'n.', '动词':'v.', '形容词':'adj.', '副词':'adv.', '代词':'pron.', '介词':'prep.', '连词':'conj.', '数词':'num.', '感叹词':'int.', '缩写':'abbr.'};
+
+function attachPhonetic(trans, phonetic) {
+  if (!phonetic || !trans) return trans;
+  return trans.replace(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i, `$1 ${phonetic} `);
+}
+
+function cleanGoogleMeaning(text) {
+  return String(text || '')
+    .replace(/\s+/g, '')
+    .replace(/[;；,，]+$/g, '')
+    .trim();
+}
+
+function buildGoogleDefinition(data) {
+  if (!data?.[1] || !data[1].length) return { text: '', hasDictPos: false };
+
+  const defs = [];
+  for (let i = 0; i < Math.min(data[1].length, 3); i++) {
+    const part = data[1][i];
+    const posEn = GOOGLE_POS_MAP[part[0]] || '';
+    const meanings = Array.isArray(part[1])
+      ? [...new Set(part[1].map(cleanGoogleMeaning).filter(Boolean))].slice(0, 3)
+      : [];
+    if (!meanings.length) continue;
+    defs.push(posEn ? `${posEn} ${meanings.join('，')}` : meanings.join('，'));
+  }
+
+  return { text: defs.join('； '), hasDictPos: true };
+}
+
+// ──── 谷歌双引擎 + 智能多重词性并发 ────
+async function getOnlineDefinition(word) {
+  try {
+    const phoneticPromise = getBestDictionaryPhonetic(word);
+    const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&dt=bd&q=${encodeURIComponent(word)}`);
+    const data = await res.json();
+    const phonetic = await phoneticPromise || pickPhoneticFromGoogleData(data);
+    
+    let trans = ''; 
+    let hasDictPos = false;
+    const common = COMMON_TRANSLATIONS[word.toLowerCase()];
+    if (common) return attachPhonetic(common, phonetic);
+
+    // 解析词典详细结果：支持并发多词性提取
+    const googleDef = buildGoogleDefinition(data);
+    hasDictPos = googleDef.hasDictPos;
+    trans = googleDef.text;
+
+    // 如果字典中没有多重释义，启用智能尾缀猜测降级模式
+    if (!hasDictPos) {
+        let posStr = '';
+        let lw = word.toLowerCase();
+        if (lw.endsWith('ness') || lw.endsWith('tion') || lw.endsWith('ity') || lw.endsWith('ment') || lw.endsWith('ism') || lw.endsWith('sion')) { posStr = 'n. '; } 
+        else if (lw.endsWith('ful') || lw.endsWith('ous') || lw.endsWith('able') || lw.endsWith('ive') || lw.endsWith('less') || lw.endsWith('al') || lw.endsWith('y')) { posStr = 'adj. '; } 
+        else if (lw.endsWith('ly')) { posStr = 'adv. '; } 
+        else if (lw.endsWith('ize') || lw.endsWith('ify') || lw.endsWith('ate')) { posStr = 'v. '; }
+        
+        if (data && data[0] && data[0][0] && data[0][0][0]) {
+            trans = posStr + data[0][0][0].trim();
+            if (trans.toLowerCase() === word.toLowerCase()) return '手动添加';
+        }
+    }
+    
+    if (phonetic && trans) {
+      trans = attachPhonetic(trans, phonetic);
+      if (!trans.includes(phonetic)) trans = `${phonetic} ${trans}`;
+    }
+    return trans || '解析失败';
+  } catch (e) { return '网络获取失败'; }
+}
+
+const POS_CLASS = { 'n.':'pos-n', 'v.':'pos-v', 'adj.':'pos-adj', 'adv.':'pos-adv', 'pron.':'pos-pron', 'prep.':'pos-prep', 'conj.':'pos-conj', 'num.':'pos-num', 'int.':'pos-int', 'abbr.':'pos-abbr' };
+
+// 简洁释义渲染：保留原来的干净样貌，只把第一个词性做标签。
+function renderDef(td, text) {
+  if (!text) { td.innerHTML = ''; return; }
+  
+  let raw = String(text).trim();
+  
+  // 兼容旧格式：如果音标在最前面，自动挪到第一个词性后面。
+  const leadingPhone = raw.match(/^(\/[^/]+\/|\[[^\]]+\])\s*/);
+  if (leadingPhone) {
+    raw = raw.substring(leadingPhone[0].length);
+    const posAtStart = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i);
+    raw = posAtStart
+      ? raw.replace(posAtStart[0], `${posAtStart[1]} ${leadingPhone[1]} `)
+      : `${leadingPhone[1]} ${raw}`;
+  }
+
+  const m = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*(\/[^/]+\/|\[[^\]]+\])?\s*([\s\S]+)$/i);
+  if (m) {
+    const pos = m[1].toLowerCase();
+    const cls = POS_CLASS[pos] || 'pos-other';
+    const phonetic = m[2] ? `<span class="phonetic">${escHtml(m[2])}</span>` : '';
+    td.innerHTML = `<span class="pos-tag ${cls}">${pos}</span>${phonetic}<span>${escHtml(m[3])}</span>`;
+  } else {
+    td.textContent = raw;
+  }
+}
+
+function buildRow(word, inputIndex = 0) {
+  const tr = document.createElement('tr'); tr.dataset.word = word;
+  tr.dataset.inputIndex = String(inputIndex);
+  
+  const tdW = document.createElement('td'); tdW.className = 'word-cell'; tdW.textContent = word;
+  const tdN = document.createElement('td'); tdN.contentEditable = 'true';
+  
+  const tdD = document.createElement('td'); tdD.id = 'def_' + word; 
+  tdD.dataset.plain = '';
+  tdD.setAttribute('data-plain', ''); // 强力备份，防止 PDF 抓取不到数据
+  tdD.contentEditable = 'true'; 
+  tdD.innerHTML = `<div class="def-loading"><div class="spinner"></div><span>获取中…</span></div>`;
+
+  tdD.addEventListener('focus', () => { tdD.textContent = tdD.dataset.plain; });
+  tdD.addEventListener('blur', () => { 
+    const t = tdD.innerText.trim(); 
+    tdD.dataset.plain = t; 
+    tdD.setAttribute('data-plain', t); // 用户修改后也必须备份
+    renderDef(tdD, t); 
+  });
+
+  const tdX = document.createElement('td');
+  const xBtn = document.createElement('button'); xBtn.className = 'del-btn no-print'; xBtn.innerHTML = '✕';
+  xBtn.onclick = () => {
+    tr.style.opacity = '0';
+    setTimeout(() => { tr.remove(); document.getElementById('countLabel').textContent = document.querySelectorAll('#tbody tr').length; }, 150);
+  };
+  tdX.appendChild(xBtn);
+
+  tr.append(tdW, tdN, tdD, tdX); return tr;
+}
+
+function reorderCurrentTable() {
+  const tbody = document.getElementById('tbody');
+  if (!tbody || !tbody.children.length) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    if (keepInputOrder) return Number(a.dataset.inputIndex || 0) - Number(b.dataset.inputIndex || 0);
+    return (a.dataset.word || '').localeCompare(b.dataset.word || '');
+  });
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+async function go() {
+  const text = document.getElementById('rawText').value.trim();
+  if (!text) { toast('请先输入内容', 'err'); return; }
+  const inputWords = extractWords(text);
+  const words = orderWords(inputWords);
+  if (!words.length) { toast('未识别到英文单词', 'err'); return; }
+  const inputIndex = new Map(inputWords.map((w, i) => [w, i]));
+
+  const btn = document.getElementById('goBtn'); btn.disabled = true; isTranslating = true;
+  btn.innerHTML = `<div class="spinner" style="border-top-color:#fff"></div> 翻译中…`;
+
+  show('progPanel'); hide('resultsPanel'); document.getElementById('filterBar').classList.remove('show');
+  
+  const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
+  words.forEach(w => tbody.appendChild(buildRow(w, inputIndex.get(w) || 0)));
+  document.getElementById('countLabel').textContent = words.length;
+  show('resultsPanel');
+
+  let processed = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    setTimeout(async () => {
+      const def = await getOnlineDefinition(w);
+      const td = document.getElementById('def_' + w);
+      if (td) { 
+        td.dataset.plain = def; 
+        td.setAttribute('data-plain', def); // API 抓取后写入备份属性
+        renderDef(td, def); 
+      }
+      processed++;
+      setProgress(5 + (processed / words.length) * 95, `正在智能翻译 (${processed}/${words.length})`, `当前词：${w}`);
+      
+      if (processed === words.length) {
+        setProgress(100, '✓ 全部翻译完成', '');
+        setTimeout(() => { hide('progPanel'); document.getElementById('filterBar').classList.add('show'); }, 1000);
+        btn.disabled = false; isTranslating = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> 重新提取`;
+        toast('✓ 翻译完成！', 'ok');
+      }
+    }, i * 150); 
+  }
+}
+
+function filterTable() {
+  const q = document.getElementById('filterInput').value.toLowerCase().trim();
+  let visible = 0;
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    const match = !q || (tr.dataset.word || '').includes(q) || (tr.querySelector('[id^="def_"]')?.dataset.plain || '').includes(q);
+    tr.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('filterCount').textContent = q ? `筛选结果：${visible}` : '';
+}
+
+function exportCSV() {
+  const rows = document.querySelectorAll('#wordTable tr'); let csv = '\uFEFF';
+  rows.forEach(row => {
+    if (row.style.display === 'none') return;
+    const cells = [...row.querySelectorAll('th,td')].slice(0, 3);
+    csv += cells.map(c => `"${c.innerText.replace(/"/g, '""').trim()}"`).join(',') + '\r\n';
+  });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `WordMatrix_单词表.csv`; a.click(); toast('✓ CSV 已导出', 'ok');
+}
+
+/* ──────────── 【绝杀修复】PDF底层多词性兼容渲染引擎 ──────────── */
+const PDF_CONTENT_W = 714; 
+
+function escHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function waitFrames(n) {
+  return new Promise(resolve => {
+    let left = n;
+    function tick() {
+      if (--left <= 0) resolve();
+      else requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+async function exportPDF(btn) {
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = `<div class="spinner" style="border-top-color:var(--ink)"></div> 生成中…`;
+  btn.disabled = true;
+
+  // 1. 安全抓取数据（优先读取强力备份 data-plain，如果没有就读 innerText）
+  const rows = [];
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    
+    const defCell = tr.querySelector('[id^="def_"]');
+    let defText = '';
+    if (defCell) {
+      defText = defCell.getAttribute('data-plain') || defCell.dataset.plain || defCell.innerText || '';
+      defText = defText.replace(/获取中…/g, '').trim();
+    }
+
+    rows.push({
+      word: tr.querySelector('.word-cell')?.textContent.trim() || '',
+      note: tr.querySelectorAll('td')[1]?.innerText.trim() || '',
+      def: defText
+    });
+  });
+
+  if (!rows.length) {
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+    toast('没有可导出的单词', 'err');
+    return;
+  }
+
+  // 2. PDF 释义渲染：保留干净表格感，只强调第一个词性。
+  function pdfPosTag(text) {
+    if (!text) return '';
+    
+    let raw = String(text);
+    
+    // 兼容旧格式：如果音标在最前面，自动挪到第一个词性后面。
+    const leadingPhone = raw.match(/^(\/[^/]+\/|\[[^\]]+\])\s*/);
+    if (leadingPhone) {
+      raw = raw.substring(leadingPhone[0].length);
+      const posAtStart = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*/i);
+      raw = posAtStart
+        ? raw.replace(posAtStart[0], `${posAtStart[1]} ${leadingPhone[1]} `)
+        : `${leadingPhone[1]} ${raw}`;
+    }
+    
+    // 完整配色图谱
+    const colors = { 'n.':'#1d6ef5', 'v.':'#059669', 'adj.':'#e11d48', 'adv.':'#d97706', 'pron.':'#9333ea', 'prep.':'#16a34a', 'conj.':'#ea580c', 'num.':'#0891b2', 'int.':'#be123c', 'abbr.':'#64748b' };
+    const bgs = { 'n.':'#eff4ff', 'v.':'#ecfdf5', 'adj.':'#fff1f2', 'adv.':'#fffbeb', 'pron.':'#fdf4ff', 'prep.':'#f0fdf4', 'conj.':'#fff7ed', 'num.':'#ecfeff', 'int.':'#fff1f2', 'abbr.':'#f1f5f9' };
+
+    const m = raw.match(/^(n\.|v\.|adj\.|adv\.|pron\.|prep\.|conj\.|num\.|int\.|abbr\.)\s*(\/[^/]+\/|\[[^\]]+\])?\s*([\s\S]+)$/i);
+    if (m) {
+      const p = m[1].toLowerCase();
+      const c = colors[p] || '#64748b';
+      const bg = bgs[p] || '#f1f5f9';
+      const phonetic = m[2] ? `<span style="display:inline-block;font-size:11px;margin-right:7px;color:#4b5563;font-family:monospace;vertical-align:middle;white-space:nowrap;">${escHtml(m[2])}</span>` : '';
+      return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:4px;margin-right:6px;background:${bg};color:${c};font-family:monospace;vertical-align:middle;">${p}</span>${phonetic}<span style="font-size:13px;line-height:1.55;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(m[3])}</span>`;
+    }
+    
+    return `<span style="font-size:13px;line-height:1.55;color:#111111;font-family:'PingFang SC','Microsoft YaHei',sans-serif;vertical-align:middle;">${escHtml(raw)}</span>`;
+  }
+
+  const rowsHTML = rows.map((r, i) => `
+    <tr style="page-break-inside:avoid;break-inside:avoid;background:${i % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:#0a0a0a;vertical-align:top;width:22%;word-break:break-word;">${escHtml(r.word)}</td>
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;vertical-align:top;width:28%;word-break:break-word;white-space:pre-wrap;">${escHtml(r.note)}</td>
+      <td style="padding:11px 12px;border-bottom:1px solid #e5e7eb;vertical-align:top;width:50%;word-break:break-word;">${pdfPosTag(r.def)}</td>
+    </tr>`).join('');
+
+  const dateStr = new Date().toLocaleDateString('zh-CN');
+  const oldScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
+  let root = document.getElementById('pdf-export-root');
+  if (root) root.remove();
+  root = document.createElement('div');
+  root.id = 'pdf-export-root';
+  root.style.width = PDF_CONTENT_W + 'px';
+  root.innerHTML = `
+    <div class="pdf-inner" style="margin:0;padding:16px 18px 20px;font-family:'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#fff;color:#0a0a0a;width:${PDF_CONTENT_W}px;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:0 0 16px;padding:0 0 12px;border-bottom:2px solid #0a0a0a;">
+        <div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;color:#0a0a0a;">Word Matrix</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">专属单词本</div>
+        </div>
+        <div style="font-size:11px;color:#9ca3af;text-align:right;">${escHtml(dateStr)} · 共 ${rows.length} 词</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin:0;">
+        <thead>
+          <tr>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:22%;">单词 WORD</th>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:28%;">笔记 NOTES</th>
+            <th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;background:#f3f4f6;border-bottom:1px solid #d1d5db;width:50%;">中文释义 & 词性</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    </div>`;
+
+  document.body.appendChild(root);
+  await waitFrames(3);
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (_) {}
+  }
+
+  const inner = root.querySelector('.pdf-inner') || root;
+  const captureW = Math.ceil(inner.scrollWidth || PDF_CONTENT_W);
+  const captureH = Math.ceil(inner.scrollHeight || root.scrollHeight);
+
+  const finish = (ok, err) => {
+    root.remove();
+    window.scrollTo(0, oldScrollY);
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+    if (ok) toast('✓ 高清 PDF 导出成功！', 'ok');
+    else {
+      toast('✗ PDF 生成失败', 'err');
+      if (err) console.error(err);
+    }
+  };
+
+  try {
+    await html2pdf().set({
+      margin: [0.35, 0.35, 0.35, 0.35],
+      filename: `WordMatrix_${dateStr.replace(/\//g, '-')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        width: captureW,
+        height: captureH,
+        windowWidth: captureW,
+        windowHeight: captureH,
+        onclone: (clonedDoc) => {
+          const cloned = clonedDoc.getElementById('pdf-export-root');
+          if (!cloned) return;
+          cloned.style.cssText = 'position:relative;left:0;top:0;margin:0;padding:0;overflow:visible;background:#fff;opacity:1;visibility:visible;z-index:auto;';
+          const box = cloned.querySelector('.pdf-inner');
+          if (box) {
+            box.style.margin = '0';
+            box.style.padding = '16px 18px 20px';
+            box.style.overflow = 'visible';
+            box.style.height = 'auto';
+            box.style.maxHeight = 'none';
+          }
+        }
+      },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait', compress: true },
+      pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' }
+    }).from(root).save();
+    finish(true);
+  } catch (err) {
+    finish(false, err);
+  }
+}
+</script>
+</body>
+</html>
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root {
